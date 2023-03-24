@@ -17,7 +17,7 @@
 
 # Technical Details
 
-* First, we locate the ActiveProcessLinks, which is a pointer to the PLIST_ENTRY structure. In our case, the ActiveProcessLinks pointer is located at offset 0x448 within the EPROCESS structure. It is important to note that this offset may vary across different windows versions .
+* First, we locate the `ActiveProcessLinks`, which is a pointer to the `PLIST_ENTRY` structure. In our case, the `ActiveProcessLinks` pointer is located at offset `0x448` within the `EPROCESS` structure. It is important to note that this offset may vary across different windows versions .
 
   ![image](https://user-images.githubusercontent.com/60795188/227363440-488dcf7d-d513-4563-8651-e44c50794881.png)
   
@@ -32,15 +32,15 @@
   | 0x02F0  | (1903)        | 0xB8    | (6.1 to 1903)       |
   | 0x0448  | | 0xE8        |         |
 
-* The PLIST_ENTRY structure is a doubly linked list structure . It contains two members, Blink and Flink, which are pointers to the previous and next entries in the list, respectively, These pointers allow for efficient traversal of the linked list in both directions.
+* The `PLIST_ENTRY` structure is a doubly linked list structure . It contains two members, `Blink` and `Flink`, which are pointers to the previous and next entries in the list, respectively, These pointers allow for efficient traversal of the linked list in both directions.
 
   ![image](https://user-images.githubusercontent.com/60795188/227370531-b1a90f9a-4fe7-4f57-8787-e1da1543e1b7.png)
  
-* The flink member resides in offset 0x0 and the blink member resides in offset 0x8. The flink address 0xffff9c8b\`071e3488 points to the next process node, while the blink address 0xfffff805\`5121e0a0 points to the previous process node
+* The flink member resides in offset `0x0` and the blink member resides in offset `0x8`. The flink address `0xffff9c8b\`071e3488` points to the next process node, while the blink address `0xfffff805\`5121e0a0` points to the previous process node
 
   ![Screenshot 2023-03-23 222046](https://user-images.githubusercontent.com/60795188/227380821-92717306-66ee-40a0-8831-1cfc1a819eda.png)
 
-* a diagram represents the PLIST_ENTRY structure.
+* a diagram represents the `PLIST_ENTRY` structure.
 
   ![Screenshot 2023-03-23 181753](https://user-images.githubusercontent.com/60795188/227361450-d35e0fbb-cfbd-4fbf-bfd6-cef3373ab07a.png)
   
