@@ -3,11 +3,6 @@
 #include <minwindef.h>
 #include <ntstrsafe.h>
 
-typedef PEPROCESS(*t_PsGetNextProcess)(PEPROCESS Process);
-
-t_PsGetNextProcess PsGetNextProcess;
-
-typedef PEPROCESS _PEPROCESS;
 
 #define HIDE_PROC CTL_CODE(FILE_DEVICE_UNKNOWN,0x45,METHOD_BUFFERED ,FILE_ANY_ACCESS)
 
@@ -16,17 +11,6 @@ typedef PEPROCESS _PEPROCESS;
 UNICODE_STRING DeviceName = RTL_CONSTANT_STRING(L"\\Device\\KDChaos");
 
 UNICODE_STRING SymbName = RTL_CONSTANT_STRING(L"\\??\\KDChaos");
-
-NTSTATUS NTAPI MmCopyVirtualMemory
-(
-    PEPROCESS SourceProcess,
-    PVOID SourceAddress,
-    PEPROCESS TargetProcess,
-    PVOID TargetAddress,
-    SIZE_T BufferSize,
-    KPROCESSOR_MODE PreviousMode,
-    PSIZE_T ReturnSize
-);
 
 char* PsGetProcessImageFileName(PEPROCESS Process);
 
