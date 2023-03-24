@@ -1,6 +1,6 @@
 # Chaos-Rootkit
 
-* Chaos-Rootkit is a kernel-mode rootkit that can hide processes or elevate their privileges, work on the latest Windows versions .
+* Chaos-Rootkit is a x64 kernel-mode rootkit that can hide processes or elevate their privileges, work on the latest Windows versions .
 
 # Features
 
