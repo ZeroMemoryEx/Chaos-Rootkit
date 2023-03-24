@@ -54,6 +54,9 @@
 
   ![image](https://user-images.githubusercontent.com/60795188/227380533-0e80298c-0800-485a-8797-1cc7a0efb757.png)
 
+* Note: After removing a node from a PLIST_ENTRY, we should set the pointer to NULL to ensure that the nodes before and after the removed node are no longer pointing to it. This can prevent potential null pointer dereferences and avoid BSODs.
+
+  ![image](https://user-images.githubusercontent.com/60795188/227399548-54da930d-031f-4b82-9e8a-ed7cc6e42a4a.png)
 ## Elevate specific process privileges
 
 * When a process is created, it inherits the token of the user who created it, The token is used by the system to determine what actions the process can perform. The token contains information about the user's security identifier (SID), group memberships, and privileges.
@@ -111,10 +114,6 @@
 * the process privileges, groups, rights 
   
   ![image](https://user-images.githubusercontent.com/60795188/226149800-e80ea9d8-5f69-4425-ad0e-a4a65cd946d9.png)
-  
-* Note: After removing a node from a PLIST_ENTRY, we should set the pointer to NULL to ensure that the nodes before and after the removed node are no longer pointing to it. This can prevent potential null pointer dereferences and avoid BSODs.
-
-  ![image](https://user-images.githubusercontent.com/60795188/227399548-54da930d-031f-4b82-9e8a-ed7cc6e42a4a.png)
 
 # DEMO
 
