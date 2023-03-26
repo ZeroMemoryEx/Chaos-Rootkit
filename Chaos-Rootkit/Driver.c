@@ -236,7 +236,7 @@ void IRP_MJCreate()
 
 void IRP_MJClose()
 {
-    DbgPrint("IRP_CREATED\n");
+    DbgPrint("IRP_CLOSED\n");
 
 }
 
