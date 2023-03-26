@@ -213,6 +213,7 @@ NTSTATUS processIoctlRequest(
 
     if (pstack->Parameters.DeviceIoControl.IoControlCode == PRIVILEGE_ELEVATION)
     {
+    
         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
 
         pstatus = PrivilegeElevationForProcess(inputInt);
@@ -235,8 +236,8 @@ void IRP_MJCreate()
 }
 
 void IRP_MJClose()
-{
-    DbgPrint("IRP_CLOSED\n");
+{ 
+    DbgPrint("IRP_CLOSED");
 
 }
 
