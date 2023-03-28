@@ -54,9 +54,11 @@
 
   ![image](https://user-images.githubusercontent.com/60795188/227380533-0e80298c-0800-485a-8797-1cc7a0efb757.png)
 
-* Note: After removing a node from a PLIST_ENTRY, we should set the pointer to NULL to ensure that the nodes before and after the removed node are no longer pointing to it. This can prevent potential null pointer dereferences and avoid BSODs.
+* Note: After removing a node from a `PLIST_ENTRY`, it is important to set the corresponding pointer to NUL, Otherwise, when trying to close the process, a PLIST_ENTRY structure will get sent to PspDeleteProcess to free all process resources, which result in a Blue Screen of Death (BSOD) .
 
-  ![image](https://user-images.githubusercontent.com/60795188/227399548-54da930d-031f-4b82-9e8a-ed7cc6e42a4a.png)
+  ![image](https://user-images.githubusercontent.com/60795188/228383831-f1a4940a-4ebb-4478-b964-ec54d4eab8e7.png)
+
+
 ## Elevate specific process privileges
 
 * When a process is created, it inherits the token of the user who created it, The token is used by the system to determine what actions the process can perform. The token contains information about the user's security identifier (SID), group memberships, and privileges.
