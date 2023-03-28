@@ -59,7 +59,7 @@
   ![image](https://user-images.githubusercontent.com/60795188/228383831-f1a4940a-4ebb-4478-b964-ec54d4eab8e7.png)
 
 
-## Elevate specific process privileges
+## Elevate process privileges
 
 * When a process is created, it inherits the token of the user who created it, The token is used by the system to determine what actions the process can perform. The token contains information about the user's security identifier (SID), group memberships, and privileges.
 
