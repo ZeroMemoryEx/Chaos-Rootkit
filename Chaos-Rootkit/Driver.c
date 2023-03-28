@@ -44,7 +44,7 @@ PrivilegeElevationForProcess(
             return (-1);
         }
 
-        PsLookupProcessByProcessId((HANDLE)0x4, &sys); // system handle
+        ret = PsLookupProcessByProcessId((HANDLE)0x4, &sys); // system handle
 
         if (ret != STATUS_SUCCESS)
         {
