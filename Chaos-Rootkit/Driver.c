@@ -159,12 +159,6 @@ HideProcess(
 
         ExAcquirePushLockExclusive(&pLock);
 
-        if (plist->Flink == NULL || plist->Blink == NULL)
-        {
-            ExReleasePushLockExclusive(&pLock);
-            __leave;
-        }
-
         if (plist->Flink->Blink != plist || plist->Blink->Flink != plist)
         {
             ExReleasePushLockExclusive(&pLock);
