@@ -16,7 +16,7 @@
 
 * Spawn elevated process: launch command prompt with elevated privileges .
 
-* Unprotect all process
+* Unprotect all processes
 
 * Protect a specific process with any given protection level (WinSystem, WinTcb, Windows, Authenticode, Lsa, Antimalware) .
 
