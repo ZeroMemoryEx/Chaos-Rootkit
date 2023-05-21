@@ -138,9 +138,6 @@ int ChangeProtectionLevel(int pid,BYTE protectionOption)
     *(BYTE*)EProtectionLevel = protectionOption;
 
     return (0);
-
-
-    return (0);
 }
 
 
