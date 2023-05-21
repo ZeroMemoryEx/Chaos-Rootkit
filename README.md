@@ -16,9 +16,9 @@
 
 * Spawn elevated process: launch command prompt with elevated privileges .
 
-* SSDT hook (soon)
+* Unprotect all process
 
-* TCP & UDP connections (soon)
+* Protect a specific process with any given protection level (WinSystem, WinTcb, Windows, Authenticode, Lsa, Antimalware) .
 
 
 # Technical Details
