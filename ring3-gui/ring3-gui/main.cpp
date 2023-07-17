@@ -430,7 +430,7 @@ int main(int, char**)
 
             if (ImGui::Button("UNPROTECT ALL PROCESSES"))
             {
-                if (DeviceIoControl(hdevice, UNPROTECT_ALL_PROCESSES, NULL, NULL, NULL, 0, 0, NULL))
+                if (DeviceIoControl(hdevice, UNPROTECT_ALL_PROCESSES, NULL, NULL, &lpBytesReturned, sizeof(lpBytesReturned), 0, NULL))
                 {
                     component_color_handler = 2;
                 }
