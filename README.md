@@ -16,6 +16,8 @@
 * Hide process: This feature allows you to hide processes from listing tools via DKOM.
 
 * Elevate specific process privileges : This feature enables you to elevate specific processes privilege .
+* 
+* Restrict user-mode application's file access
 
 * Spawn elevated process: launch command prompt with elevated privileges .
 
