@@ -39,7 +39,7 @@ typedef struct x_hooklist {
     uintptr_t* NtCreateFileHookAddress;
 
     int pID;
-    char filename;
+    wchar_t filename[MAX_PATH];
 
 }hooklist, *Phooklist;
 
@@ -74,7 +74,7 @@ NTSTATUS WINAPI FakeNtCreateFile(
         ObjectAttributes->ObjectName->Buffer)
     {
 
-        if (wcsstr(ObjectAttributes->ObjectName->Buffer, L"restricted.txt"))
+        if (wcsstr(ObjectAttributes->ObjectName->Buffer, xHooklist.filename))
         {
 
             DbgPrint("Blocked : %wZ.\n", ObjectAttributes->ObjectName);
@@ -118,13 +118,18 @@ NTSTATUS WINAPI FakeNtCreateFile(
 
 DWORD initializehooklist(Phooklist hooklist_s,fopera rfileinfo)
 {
-    if (!hooklist_s)
+    if (!hooklist_s || !rfileinfo.filename || !rfileinfo.rpid)
     {
-        DbgPrint("invalid Hook List provided\n");
+        DbgPrint("invalid structure provided \n");
         return (-1);
 
     }
 
+    if (hooklist_s->NtCreateFileAddress)
+    {
+        DbgPrint("Hook already active \n");
+        return (-1);
+    }
     UNICODE_STRING NtCreateFile_STRING = RTL_CONSTANT_STRING(L"NtCreateFile");
 
     UNICODE_STRING NtOpenFile_STRING = RTL_CONSTANT_STRING(L"NtOpenFile");
@@ -174,6 +179,8 @@ DWORD initializehooklist(Phooklist hooklist_s,fopera rfileinfo)
     memcpy(hooklist_s->NtCreateFileOrigin, hooklist_s->NtCreateFileAddress, 12);
 
     hooklist_s->pID = rfileinfo.rpid;
+    RtlCopyMemory(hooklist_s->filename, rfileinfo.filename,sizeof(rfileinfo.filename));
+    //hooklist_s->filename = rfileinfo.filename;
 
     write_to_read_only_memory(hooklist_s->NtCreateFileAddress, &hooklist_s->NtCreateFilePatch, sizeof(hooklist_s->NtCreateFilePatch));
 
