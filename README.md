@@ -16,6 +16,7 @@
     <img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee">
   </a>
 </p>
+
 # Features
 
 * Hide process: This feature allows you to hide processes from listing tools via DKOM.
