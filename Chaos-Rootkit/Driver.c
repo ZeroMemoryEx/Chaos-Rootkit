@@ -397,8 +397,8 @@ unloadv(
     PDRIVER_OBJECT driverObject
 )
 {
-    write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
-
+    if (xHooklist.NtCreateFileAddress)
+        write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
 
     IoDeleteSymbolicLink(&SymbName);
 
@@ -524,13 +524,20 @@ NTSTATUS processIoctlRequest(
 
          DbgPrint("all Processes Protection has been removed");
      }
+
     memcpy(Irp->AssociatedIrp.SystemBuffer, &pstatus, sizeof(pstatus));
 
-    Irp->IoStatus.Status = 0;
+    Irp->IoStatus.Status = pstatus;
 
     Irp->IoStatus.Information = sizeof(int);
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    if (pstatus)
+        return (STATUS_UNSUCCESSFUL);
+
+    return (STATUS_SUCCESS);
+
 }
 
 void IRP_MJCreate()
