@@ -5,7 +5,7 @@
 </p>
 
 
-  * Chaos-Rootkit is a x64 ring0 rootkit with process hiding, privilege escalation, and capabilities for protecting and unprotecting processes, work on the latest Windows versions .
+*  Chaos-Rootkit is a x64 ring0 rootkit with process hiding, privilege escalation, and capabilities for protecting and unprotecting processes and ability to restrict access to files except for whitelisted process work seamlessly on the latest Windows versions.
 
 * Gui version
   
