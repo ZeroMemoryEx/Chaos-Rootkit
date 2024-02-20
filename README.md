@@ -9,8 +9,13 @@
 
 * Gui version
   
-  ![29](https://github.com/ZeroMemoryEx/Chaos-Rootkit/assets/60795188/04c9303f-b180-413d-bb38-2dd824db4ef5)
-
+  ![29](https://github.com/ZeroMemoryEx/Chaos-Rootkit/assets/60795188/110f3c3e-3225-451b-a1f9-c00a9f5d0a70)
+  
+<p align="center">
+  <a href="https://www.buymeacoffee.com/ZeroMemoryEx" target="_blank">
+    <img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee">
+  </a>
+</p>
 # Features
 
 * Hide process: This feature allows you to hide processes from listing tools via DKOM.
@@ -124,8 +129,8 @@
 
 # DEMO
 
-
-
   https://user-images.githubusercontent.com/60795188/227605986-dd59463e-f9f1-4fa0-ba87-3c06d3c34ca0.mp4
+
+  
 
 
