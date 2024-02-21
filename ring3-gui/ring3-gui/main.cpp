@@ -522,7 +522,7 @@ int main(int, char**)
             {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 
-                ImGui::Text("Faild to send IOCTL, Please make sure to provide a filename and valid pid.");
+                ImGui::Text("Faild to send IOCTL, Please make sure to provide a filename and valid pid or a file is already hidden.");
             }
             if (component_color_handler == 2)
             {
