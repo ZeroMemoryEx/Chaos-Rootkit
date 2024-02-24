@@ -665,6 +665,7 @@ DWORD InializeOffsets( ) {
     if (eoffsets.ActiveProcessLinks_offset && eoffsets.Token_offset && eoffsets.protection_offset)
         return (STATUS_SUCCESS);
 
+    DbgPrint("Unsupported Windows build %lu. Please open an issue in the repository", pversion.dwBuildNumber);
     return (STATUS_UNSUCCESSFUL);
 }
 
@@ -687,12 +688,11 @@ DriverEntry(
 
     if (InializeOffsets())
     {
-        DbgPrint("Unsupported windows build please open an issue in the repository");
         unloadv(driverObject);
         return (STATUS_UNSUCCESSFUL);
     }
 
-    DbgPrint("offsets initialize\n");
+    DbgPrint("offsets initialized\n");
 
     driverObject->DriverUnload = &unloadv;
     driverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = processIoctlRequest;
