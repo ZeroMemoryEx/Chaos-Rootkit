@@ -53,7 +53,7 @@
 
   ![image](https://user-images.githubusercontent.com/60795188/227370531-b1a90f9a-4fe7-4f57-8787-e1da1543e1b7.png)
  
-* The flink member resides in offset `0x0` and the blink member resides in offset `0x8`. The flink address `0xffff9c8b\`071e3488` points to the next process node, while the blink address `0xfffff805\`5121e0a0` points to the previous process node
+* The flink member resides in offset `0x0` and the blink member resides in offset `0x8`. The flink address `0xffff9c8b\071e3488` points to the next process node, while the blink address `0xfffff805\5121e0a0` points to the previous process node
 
   ![Screenshot 2023-03-23 222046](https://user-images.githubusercontent.com/60795188/227380821-92717306-66ee-40a0-8831-1cfc1a819eda.png)
 
@@ -65,7 +65,7 @@
 
   ![image](https://user-images.githubusercontent.com/60795188/227380533-0e80298c-0800-485a-8797-1cc7a0efb757.png)
 
-* Note: After removing the node from PLIST_ENTRY structure, it is important to set the corresponding pointer to NULL, Otherwise, when attempting to close the process, the PLIST_ENTRY structure will get sent to the PspDeleteProcess API to free all its resources, after the API does not find the process in the structure, it will suspect that the process has already been freed, resulting in a Blue Screen of Death (BSOD), as shown below  .
+* Note: After removing the node from `PLIST_ENTRY` structure, it is important to set the corresponding pointer to NULL, Otherwise, when attempting to close the process, the PLIST_ENTRY structure will get sent to the `PspDeleteProcess` API to free all its resources, after the API does not find the process in the structure, it will suspect that the process has already been freed, resulting in a Blue Screen of Death (BSOD), as shown below  .
 
   ![image](https://user-images.githubusercontent.com/60795188/228383831-f1a4940a-4ebb-4478-b964-ec54d4eab8e7.png)
 
@@ -76,7 +76,7 @@
 
   ![image](https://user-images.githubusercontent.com/60795188/226148214-1d63149a-e2e6-4938-9067-30df7939c9db.png)
   
-* The Token member resides at offset `0x4b8` in the `_EPROCESS` structure, which is a data structure that represents a process object. The Token member is defined in  `_EX_FAST_REF` structure, which is a union type that can store either a pointer to a kernel object or a reference count, depending on the size of the pointer , The offset of the `_EX_FAST_REF` structure within `_EPROCESS` depends on the specific version of Windows being used, but it is typically located at an offset of `0x4b8` in recent versions of Windows..
+* The Token member resides at offset `0x4b8` in the `_EPROCESS` structure, which is a data structure that represents a process object. The Token member is defined in  `EX_FAST_REF` structure, which is a union type that can store either a pointer to a kernel object or a reference count, depending on the size of the pointer , The offset of the `_EX_FAST_REF` structure within `_EPROCESS` depends on the specific version of Windows being used, but it is typically located at an offset of `0x4b8` in recent versions of Windows..
 
 * Windows Build Number token Offsets for x64 and x86 Architectures
 
@@ -127,10 +127,6 @@
 * the process privileges, groups, rights 
   
   ![image](https://user-images.githubusercontent.com/60795188/226149800-e80ea9d8-5f69-4425-ad0e-a4a65cd946d9.png)
-
-# DEMO
-
-  https://user-images.githubusercontent.com/60795188/227605986-dd59463e-f9f1-4fa0-ba87-3c06d3c34ca0.mp4
 
   
 
