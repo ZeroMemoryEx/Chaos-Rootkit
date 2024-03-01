@@ -75,52 +75,63 @@ NTSTATUS WINAPI FakeNtCreateFile(
 
     int requestorPid = 0x0;
 
-    write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
-
-    if (ObjectAttributes &&
-        ObjectAttributes->ObjectName &&
-        ObjectAttributes->ObjectName->Buffer)
+    try
     {
+        __try {
 
-        if (wcsstr(ObjectAttributes->ObjectName->Buffer, xHooklist.filename))
-        {
 
-            DbgPrint("Blocked : %wZ.\n", ObjectAttributes->ObjectName);
+            write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
 
-            FLT_CALLBACK_DATA flt;
-
-            DbgPrint("requestor pid %d\n", requestorPid = FltGetRequestorProcessId(&flt));
-
-            if ((ULONG)requestorPid == (ULONG)xHooklist.pID)
+            if (ObjectAttributes &&
+                ObjectAttributes->ObjectName &&
+                ObjectAttributes->ObjectName->Buffer)
             {
 
-                DbgPrint("process allowed\n");
+                if (wcsstr(ObjectAttributes->ObjectName->Buffer, xHooklist.filename))
+                {
 
-                NTSTATUS FakeStatus = NtCreateFile(FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
+                    DbgPrint("Blocked : %wZ.\n", ObjectAttributes->ObjectName);
 
-                write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFilePatch, sizeof(xHooklist.NtCreateFilePatch));
+                    FLT_CALLBACK_DATA flt;
 
-                KeReleaseMutex(&Mutex, 0);
+                    DbgPrint("requestor pid %d\n", requestorPid = FltGetRequestorProcessId(&flt));
 
-                return (FakeStatus);
+                    if ((ULONG)requestorPid == (ULONG)xHooklist.pID)
+                    {
+
+                        DbgPrint("process allowed\n");
+
+                        NTSTATUS FakeStatus = NtCreateFile(FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
+
+                        write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFilePatch, sizeof(xHooklist.NtCreateFilePatch));
+
+                        return (FakeStatus);
+                    }
+
+                    write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFilePatch, sizeof(xHooklist.NtCreateFilePatch));
+
+                    return (STATUS_ACCESS_DENIED);
+                }
+
             }
+
+            NTSTATUS FakeStatus = NtCreateFile(FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
 
             write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFilePatch, sizeof(xHooklist.NtCreateFilePatch));
 
-            KeReleaseMutex(&Mutex, 0);
-
-            return (STATUS_ACCESS_DENIED);
+            return (FakeStatus);
         }
+        __except (GetExceptionCode() == STATUS_ACCESS_VIOLATION
+            ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+        {
+            DbgPrint("an issue occured while hooking NtCreateFile (Hook Removed ) (%08) \n", GetExceptionCode());
 
+            write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
+        }
     }
-
-    NTSTATUS FakeStatus = NtCreateFile(FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
-
-    write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFilePatch, sizeof(xHooklist.NtCreateFilePatch));
-
-    KeReleaseMutex(&Mutex, 0);
-
-    return (FakeStatus);
+    __finally {
+        KeReleaseMutex(&Mutex, 0);
+    }
 }
 
 DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo)
@@ -271,7 +282,6 @@ ChangeProtectionLevel(int pid, BYTE protectionOption)
     return (0);
 }
 
-
 DWORD
 PrivilegeElevationForProcess(
     int pid
@@ -327,7 +337,6 @@ PrivilegeElevationForProcess(
         {
             ObDereferenceObject(sys);
             ObDereferenceObject(process);
-
             return (-1);
         }
 
@@ -340,14 +349,13 @@ PrivilegeElevationForProcess(
             ObDereferenceObject(sys);
             ObDereferenceObject(TargetToken);
             ObDereferenceObject(process);
-
             return (-1);
         }
 
         DbgPrint("system token : %x\n", sysToken);
 
         ULONG_PTR UniqueProcessIdAddress = (ULONG_PTR)process + eoffsets.Token_offset;
-        
+
         DbgPrint("%s token address  %x\n", ImageName, UniqueProcessIdAddress);
 
         unsigned long long  UniqueProcessId = *(PHANDLE)UniqueProcessIdAddress;
@@ -382,6 +390,7 @@ PrivilegeElevationForProcess(
 
     return (0);
 }
+
 
 DWORD
 HideProcess(
@@ -472,112 +481,243 @@ NTSTATUS processIoctlRequest(
 
     int pstatus = 0;
     int inputInt = 0;
-
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == HIDE_PROC)
+    __try
     {
+        switch (pstack->Parameters.DeviceIoControl.IoControlCode)
+        {
+            case HIDE_PROC:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
 
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+                pstatus = HideProcess(inputInt);
 
-        pstatus = HideProcess(inputInt);
+                DbgPrint("Received input value: %d\n", inputInt);
+                break;
+            }
 
-        DbgPrint("Received input value: %d\n", inputInt);
+            case PRIVILEGE_ELEVATION:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = PrivilegeElevationForProcess(inputInt);
+
+                DbgPrint("Received input value: %d\n", inputInt);
+
+                break;
+            }
+            case PROTECTION_LEVEL_SYSTEM:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_SYSTEM);
+
+                DbgPrint("Process Protection changed to WinSystem");
+                break;
+
+            }
+            case PROTECTION_LEVEL_WINTCB:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINTCB);
+
+                DbgPrint("Process Protection changed to WinTcb");
+                break;
+            }
+            case PROTECTION_LEVEL_WINDOWS:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINDOWS);
+
+                DbgPrint("Process Protection changed to Windows");
+                break;
+            }
+            case PROTECTION_LEVEL_AUTHENTICODE:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_AUTHENTICODE);
+
+                DbgPrint("Process Protection changed to Authenticode ");
+                break;
+            }
+            case PROTECTION_LEVEL_WINTCB_LIGHT:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINTCB_LIGHT);
+
+                DbgPrint("Process Protection changed to WinTcb ");
+                break;
+            }
+            case PROTECTION_LEVEL_WINDOWS_LIGHT:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINDOWS_LIGHT);
+
+                DbgPrint("Process Protection changed to Windows ");
+                break;
+            }
+
+            case RESTRICT_ACCESS_TO_FILE_CTL:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(fopera))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                fopera rfileinfo = { 0 };
+                RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
+                pstatus = initializehooklist(&xHooklist, rfileinfo);
+
+
+                DbgPrint("Process Protection changed to Windows ");
+                break;
+            }
+            case PROTECTION_LEVEL_LSA_LIGHT:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_LSA_LIGHT);
+
+                DbgPrint("Process Protection changed to Lsa");
+                break;
+            }
+            case PROTECTION_LEVEL_ANTIMALWARE_LIGHT:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_ANTIMALWARE_LIGHT);
+
+                DbgPrint("Process Protection changed to Antimalware ");
+                break;
+            }
+            case PROTECTION_LEVEL_AUTHENTICODE_LIGHT:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+                pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_AUTHENTICODE_LIGHT);
+
+                DbgPrint("Process Protection changed to Authenticode ");
+                break;
+            }
+            case UNPROTECT_ALL_PROCESSES:
+            {
+                pstatus = UnprotectAllProcesses();
+
+                DbgPrint("all Processes Protection has been removed");
+                break;
+            }
+            default:
+            {
+                DbgPrint("Invalid Buffer ");
+                pstatus = STATUS_INVALID_DEVICE_REQUEST;
+
+            }
+        }
     }
+    __except (GetExceptionCode() == STATUS_ACCESS_VIOLATION
+        ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
 
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PRIVILEGE_ELEVATION)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+        if (GetExceptionCode() == STATUS_ACCESS_VIOLATION)
+        {
+            DbgPrint("Invalid Buffer (STATUS_ACCESS_VIOLATION)");
 
-        pstatus = PrivilegeElevationForProcess(inputInt);
+            KPROCESSOR_MODE prevmode = ExGetPreviousMode();
 
-        DbgPrint("Received input value: %d\n", inputInt);
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_SYSTEM)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+            if (prevmode == UserMode)
+            {
+                DbgPrint("possible that the client is attempting to crash the driver, but not if we crash you first :) ");
 
-        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_SYSTEM);
+                FLT_CALLBACK_DATA flcd;
+                HANDLE phandle;
+                OBJECT_ATTRIBUTES objectattr;
+                CLIENT_ID clid;
+                clid.UniqueProcess = IoGetRequestorProcessId(Irp);
+                InitializeObjectAttributes(&objectattr, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+                pstatus = ZwOpenProcess(&phandle, DELETE, &objectattr, &clid);
 
-        DbgPrint("Process Protection changed to WinSystem");
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_WINTCB)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+                __try {
 
-        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINTCB);
+                    if (!NT_SUCCESS(pstatus))
+                    {
+                        DbgPrint("failed to open process (%08X)\n", pstatus);
+                    }
+                    else
+                    {
+                        pstatus = ZwTerminateProcess(phandle, 69);
 
-        DbgPrint("Process Protection changed to WinTcb");
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_WINDOWS)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINDOWS);
-
-        DbgPrint("Process Protection changed to Windows");
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_AUTHENTICODE)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_AUTHENTICODE);
-
-        DbgPrint("Process Protection changed to Authenticode ");
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_WINTCB_LIGHT)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINTCB_LIGHT);
-
-        DbgPrint("Process Protection changed to WinTcb ");
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_WINDOWS_LIGHT)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINDOWS_LIGHT);
-
-        DbgPrint("Process Protection changed to Windows ");
-    }
-
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == RESTRICT_ACCESS_TO_FILE_CTL)
-    {
-        fopera rfileinfo = { 0 };
-        RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
-
-        pstatus = initializehooklist(&xHooklist, rfileinfo);
-
-        DbgPrint("Process Protection changed to Windows ");
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_LSA_LIGHT)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_LSA_LIGHT);
-
-        DbgPrint("Process Protection changed to Lsa");
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_ANTIMALWARE_LIGHT)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_ANTIMALWARE_LIGHT);
-
-        DbgPrint("Process Protection changed to Antimalware ");
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == PROTECTION_LEVEL_AUTHENTICODE_LIGHT)
-    {
-        RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-        pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_AUTHENTICODE_LIGHT);
-
-        DbgPrint("Process Protection changed to Authenticode ");
-    }
-    if (pstack->Parameters.DeviceIoControl.IoControlCode == UNPROTECT_ALL_PROCESSES)
-    {
-        pstatus = UnprotectAllProcesses();
-
-        DbgPrint("all Processes Protection has been removed");
+                        if (!NT_SUCCESS(pstatus))
+                        {
+                            DbgPrint("failed to terminate the requestor process (%08X)\n", pstatus);
+                        }
+                    }
+                }
+                __finally {
+                    ZwClose(phandle);
+                    ObDereferenceObject(&objectattr);
+                }
+            }
+        }
+        pstatus = GetExceptionCode();
     }
 
     memcpy(Irp->AssociatedIrp.SystemBuffer, &pstatus, sizeof(pstatus));
@@ -608,7 +748,7 @@ void IRP_MJClose()
 }
 
 
-DWORD InializeOffsets( ) {
+DWORD InializeOffsets() {
     DWORD dwOffset = 0;
     RTL_OSVERSIONINFOW pversion;
 
@@ -617,10 +757,10 @@ DWORD InializeOffsets( ) {
     if (pversion.dwBuildNumber == 17763) {
         eoffsets.Token_offset = 0x0358;
     }
-    else if (pversion.dwBuildNumber == 18362) { 
+    else if (pversion.dwBuildNumber == 18362) {
         eoffsets.Token_offset = 0x0360;
     }
-    else if (pversion.dwBuildNumber == 19045) { 
+    else if (pversion.dwBuildNumber == 19045) {
         eoffsets.Token_offset = 0x04B8;
     }
     else {
@@ -666,6 +806,7 @@ DWORD InializeOffsets( ) {
         return (STATUS_SUCCESS);
 
     DbgPrint("Unsupported Windows build %lu. Please open an issue in the repository", pversion.dwBuildNumber);
+
     return (STATUS_UNSUCCESSFUL);
 }
 
@@ -683,8 +824,19 @@ DriverEntry(
     UNREFERENCED_PARAMETER(registryPath);
     UNREFERENCED_PARAMETER(driverObject);
 
-    IoCreateDevice(driverObject, 0, &DeviceName, FILE_DEVICE_UNKNOWN, METHOD_BUFFERED, FALSE, &driverObject->DeviceObject);
-    IoCreateSymbolicLink(&SymbName, &DeviceName);
+    NTSTATUS status = IoCreateDevice(driverObject, 0, &DeviceName, FILE_DEVICE_UNKNOWN, METHOD_BUFFERED, FALSE, &driverObject->DeviceObject);
+
+    if (!NT_SUCCESS(status)) {
+        DbgPrint(("Failed to create device object (0x%08X)\n", status));
+        return (STATUS_UNSUCCESSFUL);
+    }
+    status = IoCreateSymbolicLink(&SymbName, &DeviceName);
+
+    if (!NT_SUCCESS(status)) {
+        DbgPrint(("Failed to create Symbolic link (0x%08X)\n", status));
+        IoDeleteDevice(driverObject->DeviceObject);
+        return (STATUS_UNSUCCESSFUL);
+    }
 
     if (InializeOffsets())
     {
