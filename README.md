@@ -23,7 +23,7 @@
 
 * Elevate specific process privileges : This feature enables you to elevate specific processes privilege .
   
-* Restrict user-mode application's file access
+* Restrict file access for user-mode applications except for the provided process ID
   
 * Spawn elevated process: launch command prompt with elevated privileges .
 
