@@ -33,6 +33,10 @@
 
 * Protect a specific process with any given protection level (WinSystem, WinTcb, Windows, Authenticode, Lsa, Antimalware) .
 
+# to-do
+
+* More code cleaning
+* handling data races.
 
 # Technical Details
 
