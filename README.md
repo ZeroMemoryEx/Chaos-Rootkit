@@ -5,7 +5,7 @@
 </p>
 
 
-*  Chaos-Rootkit is a x64 ring0 rootkit with process hiding, privilege escalation, and capabilities for protecting and unprotecting processes and ability to restrict access to files except for whitelisted process work seamlessly on the latest Windows versions.
+*  Chaos-Rootkit is a x64 Ring 0 rootkit with capabilities for process hiding, privilege escalation, protecting and unprotecting processes, and restricting access to files except for whitelisted processes. It can bypass file integrity checks and protect it against anti-malware, working seamlessly on the latest Windows versions.
 
 * Gui version
   
@@ -27,6 +27,8 @@
   
 * Spawn elevated process: launch command prompt with elevated privileges .
 
+* Bypass the file integrity check and protect it against anti-malware : this work by redirecting file operations to a legitimate file, making our file appear authentic and signed with a valid certificate also if   an anti-malware attempting to scan it, the rootkit will immediately kill the anti-malware process.
+  
 * Unprotect all processes
 
 * Protect a specific process with any given protection level (WinSystem, WinTcb, Windows, Authenticode, Lsa, Antimalware) .
