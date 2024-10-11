@@ -24,7 +24,7 @@
 
 * Elevate specific process privileges : This feature enables you to elevate specific processes privilege .
 
-* Swap the driver on disk and in memory with a Microsoft driver: All credit for this implementation goes to [IDontCode](https://x.com/_xeroxz) for his exceptional work.
+* Swap the driver on disk and in memory with a Microsoft driver: All credit for this implementation goes to [IDontCode](https://x.com/_xeroxz) for his exceptional work, I've also handled the unload and shutdown routines for this feature so that the rootkits driver doesn’t get corrupted or crash at some point.
 
 * Restrict file access for user-mode applications except for the provided process ID
   
