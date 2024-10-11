@@ -9,7 +9,9 @@
 
 * Gui version
   
-   ![image](https://github.com/user-attachments/assets/2c609a99-5050-45f8-9411-aba1c41fb77e)
+<p align="center">
+    <img src="https://github.com/user-attachments/assets/be4a4203-9ad4-4be3-b4b5-da86edceff2a" alt="image">
+</p>
 
     
 <p align="center">
