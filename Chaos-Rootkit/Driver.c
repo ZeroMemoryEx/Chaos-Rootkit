@@ -15,9 +15,6 @@ NTSTATUS WINAPI FakeNtCreateFile2(
     ULONG              EaLength
 ) {
     NTSTATUS status = STATUS_UNSUCCESSFUL; 
-    KMUTEX Mutex;
-    KeInitializeMutex(&Mutex, 0);
-    KeWaitForSingleObject(&Mutex, Executive, ExGetPreviousMode(), FALSE, NULL);
 
     __try
     {
@@ -117,7 +114,7 @@ NTSTATUS WINAPI FakeNtCreateFile2(
         }
     }
     __finally {
-        KeReleaseMutex(&Mutex, 0);
+        //KeReleaseMutex(&Mutex, 0);
     }
 
     return status;
