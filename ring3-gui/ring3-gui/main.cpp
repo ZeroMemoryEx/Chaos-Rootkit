@@ -758,11 +758,11 @@ int main(int, char**)
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
                 if (component_color_handler == 3)
                 {
-                    ImGui::Text("Driver swapped on disk and in memory.");
+                    ImGui::Text("Driver swapped on disk and in memory, Dwivew swapped on disk and in memowy~");
                 }
                 else
                 {
-                    ImGui::Text("IOCTL %x sent!", PRIVILEGE_ELEVATION);
+                    ImGui::Text("Swappeduwu !!!");
                 }
                 ImGui::PopStyleColor();
             }
