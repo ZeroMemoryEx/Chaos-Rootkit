@@ -652,9 +652,11 @@ DriverEntry(
         //unloadv(driverObject);
         //return (STATUS_UNSUCCESSFUL);
     }
-
-    DbgPrint("Offsets initialized\n");
-
+    else
+    {
+        DbgPrint("Offsets initialized\n");
+    }
+    
     if (!NT_SUCCESS(status = IoRegisterShutdownNotification(driverObject->DeviceObject)))
     {
         DbgPrint("Failed to register the shutdown notification callback (0x%08) \n",status);
