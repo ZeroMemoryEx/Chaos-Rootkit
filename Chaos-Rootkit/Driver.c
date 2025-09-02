@@ -308,7 +308,7 @@ NTSTATUS processIoctlRequest(
         // if system offsets not supported / disable features 
         // that require the use of offsets to avoid crash
         if (pstack->Parameters.DeviceIoControl.IoControlCode >= HIDE_PROC && \
-            pstack->Parameters.DeviceIoControl.IoControlCode <= UNPROTECT_ALL_PROCESSES && xHooklist.check_off)
+            pstack->Parameters.DeviceIoControl.IoControlCode <= CR_SET_PROTECTION_LEVEL_CTL && xHooklist.check_off)
         {
             pstatus = ERROR_UNSUPPORTED_OFFSET;
             __leave;
@@ -346,92 +346,20 @@ NTSTATUS processIoctlRequest(
 
             break;
         }
-        case PROTECTION_LEVEL_SYSTEM:
+        case CR_SET_PROTECTION_LEVEL_CTL:
         {
             if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
             {
                 pstatus = STATUS_BUFFER_TOO_SMALL;
                 break;
             }
-            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
 
-            pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_SYSTEM);
+            PCR_SET_PROTECTION_LEVEL Args = Irp->AssociatedIrp.SystemBuffer;
 
-            DbgPrint("Process Protection changed to WinSystem");
-            break;
+            pstatus = ChangeProtectionLevel(Args);
 
-        }
-        case PROTECTION_LEVEL_WINTCB:
-        {
-            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-            {
-                pstatus = STATUS_BUFFER_TOO_SMALL;
-                break;
-            }
-            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-            pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINTCB);
-
-            DbgPrint("Process Protection changed to WinTcb");
             break;
         }
-        case PROTECTION_LEVEL_WINDOWS:
-        {
-            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-            {
-                pstatus = STATUS_BUFFER_TOO_SMALL;
-                break;
-            }
-            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-            pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINDOWS);
-
-            DbgPrint("Process Protection changed to Windows");
-            break;
-        }
-        case PROTECTION_LEVEL_AUTHENTICODE:
-        {
-            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-            {
-                pstatus = STATUS_BUFFER_TOO_SMALL;
-                break;
-            }
-            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-            pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_AUTHENTICODE);
-
-            DbgPrint("Process Protection changed to Authenticode ");
-            break;
-        }
-        case PROTECTION_LEVEL_WINTCB_LIGHT:
-        {
-            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-            {
-                pstatus = STATUS_BUFFER_TOO_SMALL;
-                break;
-            }
-            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-            pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINTCB_LIGHT);
-
-            DbgPrint("Process Protection changed to WinTcb ");
-            break;
-        }
-        case PROTECTION_LEVEL_WINDOWS_LIGHT:
-        {
-            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-            {
-                pstatus = STATUS_BUFFER_TOO_SMALL;
-                break;
-            }
-            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-            pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_WINDOWS_LIGHT);
-
-            DbgPrint("Process Protection changed to Windows ");
-            break;
-        }
-
         case RESTRICT_ACCESS_TO_FILE_CTL:
         {
             if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(fopera))
@@ -460,48 +388,7 @@ NTSTATUS processIoctlRequest(
             DbgPrint("bypass integrity check ");
             break;
         }
-        case PROTECTION_LEVEL_LSA_LIGHT:
-        {
-            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-            {
-                pstatus = STATUS_BUFFER_TOO_SMALL;
-                break;
-            }
-            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-            pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_LSA_LIGHT);
-
-            DbgPrint("Process Protection changed to Lsa");
-            break;
-        }
-        case PROTECTION_LEVEL_ANTIMALWARE_LIGHT:
-        {
-            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-            {
-                pstatus = STATUS_BUFFER_TOO_SMALL;
-                break;
-            }
-            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-            pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_ANTIMALWARE_LIGHT);
-
-            DbgPrint("Process Protection changed to Antimalware ");
-            break;
-        }
-        case PROTECTION_LEVEL_AUTHENTICODE_LIGHT:
-        {
-            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-            {
-                pstatus = STATUS_BUFFER_TOO_SMALL;
-                break;
-            }
-            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-
-            pstatus = ChangeProtectionLevel(inputInt, global_protection_levels.PS_PROTECTED_AUTHENTICODE_LIGHT);
-
-            DbgPrint("Process Protection changed to Authenticode ");
-            break;
-        }
+       
         case UNPROTECT_ALL_PROCESSES:
         {
             pstatus = UnprotectAllProcesses();

