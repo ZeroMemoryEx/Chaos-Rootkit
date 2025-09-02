@@ -348,7 +348,7 @@ NTSTATUS processIoctlRequest(
         }
         case CR_SET_PROTECTION_LEVEL_CTL:
         {
-            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
+            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(CR_SET_PROTECTION_LEVEL))
             {
                 pstatus = STATUS_BUFFER_TOO_SMALL;
                 break;
@@ -560,3 +560,4 @@ DriverEntry(
 
     return (STATUS_SUCCESS);
 }
+
