@@ -308,7 +308,7 @@ NTSTATUS processIoctlRequest(
         // if system offsets not supported / disable features 
         // that require the use of offsets to avoid crash
         if (pstack->Parameters.DeviceIoControl.IoControlCode >= HIDE_PROC && \
-            pstack->Parameters.DeviceIoControl.IoControlCode <= CR_SET_PROTECTION_LEVEL_CTL && xHooklist.check_off)
+            pstack->Parameters.DeviceIoControl.IoControlCode <= UNPROTECT_ALL_PROCESSES && xHooklist.check_off)
         {
             pstatus = ERROR_UNSUPPORTED_OFFSET;
             __leave;
@@ -560,4 +560,5 @@ DriverEntry(
 
     return (STATUS_SUCCESS);
 }
+
 
