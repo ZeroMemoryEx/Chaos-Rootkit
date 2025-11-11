@@ -8,9 +8,9 @@
 *  Chaos-Rootkit is an x64 Ring 0 rootkit with capabilities for process hiding, privilege escalation, protecting and unprotecting processes, and restricting access to files except for whitelisted processes. It can bypass file integrity checks and protect it against anti-malware, and swap the driver in memory and on disk with a signed Microsoft driver, working seamlessly on the latest Windows versions
 
 * Gui version
-  
+
 <p align="center">
-    <img src="https://github.com/user-attachments/assets/be4a4203-9ad4-4be3-b4b5-da86edceff2a" alt="image">
+    <img src="https://github.com/user-attachments/assets/e89ff29a-01f8-461c-ad29-5a0454763fcf" alt="image">
 </p>
 
     
@@ -37,6 +37,8 @@
 * Unprotect all processes
 
 * Protect a specific process with any given protection level (WinSystem, WinTcb, Windows, Authenticode, Lsa, Antimalware) .
+  
+* Protect a specific file against anti-malware, when an anti malware tries to scan it the rootkit will shut it down this done by checking the caller EPROCESS protection member .
 
   
 
