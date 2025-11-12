@@ -41,5 +41,7 @@
 * Protect a specific file against anti-malware, when an anti malware tries to scan it the rootkit will shut it down this done by checking the caller EPROCESS protection member .
 
   
+# Write-up
 
+* very soon!
 
