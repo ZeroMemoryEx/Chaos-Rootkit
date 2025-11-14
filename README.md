@@ -26,7 +26,7 @@
 
 * Elevate specific process privileges : This feature enables you to elevate specific processes privilege .
 
-* Swap the driver on disk and in memory with a Microsoft driver: All credit for this implementation goes to [IDontCode](https://x.com/_xeroxz) for his exceptional work, I've also handled the unload and shutdown routines for this feature so that the rootkits driver doesn’t get corrupted or crash at some point.
+* Swap the driver on disk and in memory with a Microsoft driver: All credit for this implementation goes to [IDontCode](https://x.com/_xeroxz) [Back Engineering](https://back.engineering/) for his exceptional work, I've also handled the unload and shutdown routines for this feature so that the rootkits driver doesn’t get corrupted or crash at some point.
 
 * Restrict file access for user-mode applications except for the provided process ID
   
@@ -141,7 +141,7 @@ PPS_PROTECTION EProtectionLevel = (ULONG_PTR)process + eoffsets.protection_offse
 
 # Swap Driver in desk and in memory
 
-* ZwSwapCert is a driver swapping technique developed by `IDontCode (@_xeroxz)` that allows a loaded driver to replace itself with a legitimate Microsoft-signed driver both on disk and in memory. This  anti-detection method makes malicious drivers appear as legitimate Windows system components while maintaining their original functionality.
+* ZwSwapCert is a driver swapping technique developed by `IDontCode (@_xeroxz)` [Back Engineering](https://back.engineering/) that allows a loaded driver to replace itself with a legitimate Microsoft-signed driver both on disk and in memory. This  anti-detection method makes malicious drivers appear as legitimate Windows system components while maintaining their original functionality.
 * All credit for the core ZwSwapCert implementation goes to `IDontCode` for this techniques.
 
 ## My Enhancements for Rootkit Use
