@@ -40,7 +40,9 @@
   
 * Protect a specific file against anti-malware, when an anti malware tries to scan it the rootkit will shut it down this done by checking the caller EPROCESS protection member .
 
-  
+# to-do
+
+*  https://x.com/sixtyvividtails/status/1990792400378478610 next update
 
 # Writeup
 * very soon ...
