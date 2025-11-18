@@ -445,7 +445,8 @@ NTSTATUS processIoctlRequest(
             pstatus = ERROR_UNSUPPORTED_OFFSET;
             __leave;
         }
-
+        // https://x.com/ZeroMemoryEx/status/1990477074457387066 to add this later
+        /*
         if (prevMode == UserMode && Irp->AssociatedIrp.SystemBuffer)
         {
             __try
@@ -463,7 +464,7 @@ NTSTATUS processIoctlRequest(
                 __leave;
             }
         }
-
+        */
         switch (pstack->Parameters.DeviceIoControl.IoControlCode)
         {
             case HIDE_PROC:
@@ -732,5 +733,6 @@ DriverEntry(
 
     return (STATUS_SUCCESS);
 }
+
 
 
