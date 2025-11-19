@@ -45,7 +45,7 @@
 *  https://x.com/sixtyvividtails/status/1990792400378478610 next update
 
 # Writeup
-* very soon ...
+* very soon ..., probably in 12/25 or 01/2026 Everything will be documented stay tuned :) .
 
 
 
