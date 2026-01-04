@@ -1,8 +1,9 @@
 # Chaos-Rootkit
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/d294f1d5-cf29-48f8-b50c-e1d11b7dc284" alt="Image Description" width="320">
+  <img src="https://github.com/user-attachments/assets/c352d7c4-f444-453d-995a-65575d3c0e9a" alt="Image Description" width="320">
 </p>
+
 
 *  Chaos-Rootkit is an x64 Ring 0 rootkit with capabilities for process hiding, privilege escalation, protecting and unprotecting processes, and restricting access to files except for whitelisted processes. It can bypass file integrity checks and protect it against anti-malware, and swap the driver in memory and on disk with a signed Microsoft driver, working seamlessly on the latest Windows versions
 
