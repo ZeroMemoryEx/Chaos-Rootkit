@@ -42,7 +42,7 @@
 
 # Contribution
 
-* Contributions are welcome, but when contributing, please pay attention to the implementation details of how the rootkit is designed. For example, see this [code](https://github.com/ZeroMemoryEx/Chaos-Rootkit/blob/1d38a4141fc5f958258af0f09a109454f59ec777/Chaos-Rootkit/Driver.c#L551). Ignoring this logic will break the driver. The last contribution did not follow this design, and I had to push several updates to fix it :(.
+* Contributions are welcome, but when contributing, please pay attention to the implementation details of how the rootkit is designed. For example, see this [code](https://github.com/ZeroMemoryEx/Chaos-Rootkit/blob/1d38a4141fc5f958258af0f09a109454f59ec777/Chaos-Rootkit/Driver.c#L551). Ignoring this logic will break the driver. The last contribution did not follow this design, and I had to push several updates to fix it :(
   
 # Writeup
 * https://www.hackandhide.com/chaos-rootkit-internals-explained/
